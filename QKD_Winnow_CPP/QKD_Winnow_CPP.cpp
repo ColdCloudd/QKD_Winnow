@@ -16,7 +16,6 @@ using namespace arma;
 using namespace chrono;
 using namespace indicators;
 
-
 const int TRIAL_NUMBER = 100;
 const int THREADS_NUMBER = 16;
 const bool SHUFFLE_MODE = true;
@@ -48,10 +47,10 @@ struct test_combination
     double error_probability{};
 };
 
-void _PRINT_ARRAY(int* bit_array, size_t ba_size, size_t block_size) {
+void _PRINT_ARRAY(int* bit_array, size_t ba_size, size_t block_length) {
     for (size_t i = 0; i < ba_size; i++)
     {
-        if (i % block_size == 0 && i != 0)
+        if (i % block_length == 0 && i != 0)
         {
             cout << " ";
         }
@@ -61,14 +60,14 @@ void _PRINT_ARRAY(int* bit_array, size_t ba_size, size_t block_size) {
     cout << endl;
 }
 
-string get_trial_combination_string(vector<int> combination) {
+string get_trial_combination_string(const vector<int>& combination) {
     string comb_str = "(";
     for (size_t i = 0; i < combination.size(); i++)
     {
         comb_str += to_string(combination[i]);
         if (i < combination.size() - 1)
         {
-            comb_str += ",";
+            comb_str += ", ";
         }
         else
         {
@@ -78,7 +77,7 @@ string get_trial_combination_string(vector<int> combination) {
     return comb_str;
 }
 
-bool write_file(vector<test_result>& data, string path) {
+bool write_file(const vector<test_result>& data, string path) {
     try
     {
         string filename = path + "winnow_res_cpp" + (string)"(trial_num=" + to_string(TRIAL_NUMBER)
@@ -100,15 +99,15 @@ bool write_file(vector<test_result>& data, string path) {
     }
 }
 
-vector<vector<int>> cartesian_product(vector<vector<int>>& combinations) {
+vector<vector<int>> cartesian_product(vector<vector<int>> trial_elements) {
     auto product = [](long long a, vector<int>& b) { return a * b.size(); };
-    const long long combination_number = accumulate(combinations.begin(), combinations.end(), 1LL, product);
-    vector<vector<int>> result(combination_number, vector<int>(combinations.size()));
+    const long long combination_number = accumulate(trial_elements.begin(), trial_elements.end(), 1LL, product);
+    vector<vector<int>> result(combination_number, vector<int>(trial_elements.size()));
     for (long long n = 0; n < combination_number; ++n) {
         lldiv_t q{ n, 0 };
-        for (long long i = combinations.size() - 1; 0 <= i; --i) {
-            q = div(q.quot, combinations[i].size());
-            result[n][i] = combinations[i][q.rem];
+        for (long long i = trial_elements.size() - 1; 0 <= i; --i) {
+            q = div(q.quot, trial_elements[i].size());
+            result[n][i] = trial_elements[i][q.rem];
         }
     }
     return result;
@@ -152,7 +151,7 @@ void introduce_errors(int* bit_array, size_t array_length, double error_probabil
     }
 }
 
-void discard_bits_for_parity_check(int*source_bit_array, size_t source_array_length, int* destination_bit_array, size_t syndrome_power) {
+void discard_bits_for_parity_check(int* source_bit_array, size_t source_array_length, int* destination_bit_array, size_t syndrome_power) {
     int source_block_size = (int)pow(2, syndrome_power);
     int destination_block_size = source_block_size - 1;
     for (size_t i = 0, j = 0; i < source_array_length; i += source_block_size, j += destination_block_size) {
@@ -160,7 +159,7 @@ void discard_bits_for_parity_check(int*source_bit_array, size_t source_array_len
     }
 }
 
-void discard_bits_for_syndrome(int* source_bit_block, int* destination_bit_block, vector<int>& discarded_bit_positions) {
+void discard_bits_for_syndrome(int* source_bit_block, int* destination_bit_block, const vector<int>& discarded_bit_positions) {
     int destination_current_start = 0;
     for (size_t i = 1; i < discarded_bit_positions.size() - 1; i++)
     {
@@ -187,7 +186,7 @@ void shuffle_array_bits(int* alice_bit_array, int* bob_bit_array, size_t array_l
     shuffle(bob_bit_array, bob_bit_array + array_length, rng);
 }
 
-umat calculate_Hamming_hash_function(int syndrome_power) {
+umat calculate_Hamming_hash_function(size_t syndrome_power) {
     int block_length = (int)pow(2, syndrome_power) - 1;
 
     umat hash_matrix(syndrome_power, block_length);
@@ -201,7 +200,7 @@ umat calculate_Hamming_hash_function(int syndrome_power) {
     return hash_matrix;
 }
 
-void calculate_syndrome(int* bit_block, size_t block_length, umat& hash_matrix, int* output_syndrome) {
+void calculate_syndrome(int* bit_block, size_t block_length, const umat& hash_matrix, int* output_syndrome) {
     ucolvec column_vector(block_length);
     for (size_t i = 0; i < block_length; i++)
     {
@@ -230,7 +229,7 @@ void correct_error(int* bit_block, int* first_syndrome, int* second_syndrome, si
 size_t winnow(int* alice_bit_array, int* bob_bit_array, size_t array_length, size_t syndrome_power, int* output_alice_bit_array, int* output_bob_bit_array) {
     
     size_t block_len = (int)pow(2, syndrome_power);
-    int blocks_cnt = array_length / block_len;
+    size_t blocks_cnt = array_length / block_len;
     umat hash_mat = calculate_Hamming_hash_function(syndrome_power);
 
     vector<int> diff_par_blocks;
@@ -243,6 +242,7 @@ size_t winnow(int* alice_bit_array, int* bob_bit_array, size_t array_length, siz
         }
     }
     #if DEBUG_WINNOW
+    cout << "______________DEBUG_WINNOW______________" << endl;
     for (size_t i = 0; i < diff_par_blocks.size(); i++)
     {
         cout << diff_par_blocks[i] << ' ';
@@ -330,7 +330,7 @@ size_t winnow(int* alice_bit_array, int* bob_bit_array, size_t array_length, siz
     #if DEBUG_WINNOW
     _PRINT_ARRAY(output_alice_bit_array, out_arr_len, block_len);
     _PRINT_ARRAY(output_bob_bit_array, out_arr_len, block_len);
-    cout << endl;
+    cout << "______________DEBUG_WINNOW______________\n" << endl;
     #endif
 
     delete[] alice_priv_amp;
@@ -339,7 +339,7 @@ size_t winnow(int* alice_bit_array, int* bob_bit_array, size_t array_length, siz
     return out_arr_len;
 }
 
-size_t run_trial(int* alice_bit_array, int* bob_bit_array, size_t array_length, vector<int>& trial_combination, bool shuffle_bits, int* output_alice_bit_array, int* output_bob_bit_array){
+size_t run_trial(int* alice_bit_array, int* bob_bit_array, size_t array_length, const vector<int>& trial_combination, bool shuffle_bits, int* output_alice_bit_array, int* output_bob_bit_array){
     int seed = 0;
     size_t block_length;
     size_t discarded_bits_number = 0;
@@ -373,7 +373,7 @@ size_t run_trial(int* alice_bit_array, int* bob_bit_array, size_t array_length, 
     return trimmed_array_length;
 }
 
-test_result run_test(test_combination combination) {
+test_result run_test(const test_combination combination) {
     int errors_number = 0;
     size_t output_array_length = 0;
     double mean_final_error = 0;
@@ -413,7 +413,7 @@ test_result run_test(test_combination combination) {
     return result;
 }
 
-vector<test_result> run_simulation(vector<test_combination>& combinations) {
+vector<test_result> run_simulation(const vector<test_combination>& combinations) {
     vector<test_result> results(combinations.size());
     BS::thread_pool pool(THREADS_NUMBER);
 
@@ -455,8 +455,16 @@ int main() {
 
     vector<test_combination> combinations = prepare_combinations(COMBINATION_ELEMENTS, BER);
     vector<test_result> result = run_simulation(combinations);
-    write_file(result, RESULT_FILE_PATH);
-    cout << endl;
+    cout << "All tests were completed successfully! \nThe results will be written to the directory: " << RESULT_FILE_PATH << endl;
+    if (write_file(result, RESULT_FILE_PATH))
+    {
+        printf("The results were written to the file successfully!");
+    }
+    else 
+    {
+        printf("An error occurred while writing to the file");
+    }
+
     //for (size_t i = 0; i < result.size(); i++)
     //{
     //    for (size_t j = 0; j < result[i].size(); j++)
