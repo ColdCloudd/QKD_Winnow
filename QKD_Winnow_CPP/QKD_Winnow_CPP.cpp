@@ -1,14 +1,16 @@
-﻿#include <iostream>
-#include <numeric>
-#include <vector>
+﻿#include <vector>
 #include <string>
 #include <random>
 #include <chrono>
+#include <numeric>
+#include <iostream>
 #include <armadillo>
-#include "BS_thread_pool.hpp"
-#include <indicators/cursor_control.hpp>
-#include <indicators/progress_bar.hpp>
 
+#include "BS_thread_pool.hpp"
+#include <indicators/progress_bar.hpp>
+#include <indicators/cursor_control.hpp>
+
+#define DEBUG_MAIN false
 #define DEBUG_WINNOW false
 
 using namespace std;
@@ -16,13 +18,31 @@ using namespace arma;
 using namespace chrono;
 using namespace indicators;
 
+//------------------------CONFIG PARAMETERS------------------------
+// Number of runs with one combination
 const int TRIAL_NUMBER = 100;
+
+// Number of threads for parallelizing runs
 const int THREADS_NUMBER = 16;
+
+// Bit shuffling between protocol iterations 
 const bool SHUFFLE_MODE = true;
+
+// Initial key size
 const int SIFTED_KEY_LENGTH = 10240;
+
+// Initial power of syndrome. Determines the length of the block (2^3, then 2^4, etc.)
 const int INITIAL_SYNDROME_POWER = 3;
+
+// Average error rate in the key
+const vector<double> QBER = { 0.01, 0.03, 0.05, 0.06, 0.08, 0.1, 0.12, 0.15 };
+
+// Folder path for saving ".csv" files with the results of the experiment 
 const string RESULT_FILE_PATH = "C:\\Users\\AGENT\\Desktop\\QKD_Winnow_CPP\\results\\";
-const vector<double> BER = { 0.01, 0.03, 0.05, 0.06, 0.08, 0.1, 0.12, 0.15 };
+
+// The numbers in the first vector determine the number of Winnow runs with a block length of 2^3, 
+// the numbers in the second vector determine the number of runs with a block length of 2^4, and so on.
+// This is necessary to compose all combinations of interest by calculating the Cartesian product.
 const vector<vector<int>> COMBINATION_ELEMENTS = 
 {   { 0, 1, 2, 3, 4 },
     { 0, 1, 2, 3, 4 },
@@ -30,6 +50,7 @@ const vector<vector<int>> COMBINATION_ELEMENTS =
     { 0, 1, 2, 3, 4 },
     { 0, 1, 2, 3, 4 }
 };
+//------------------------CONFIG PARAMETERS------------------------
 
 struct test_result
 {
@@ -44,22 +65,22 @@ struct test_combination
 {
     int test_number{};
     vector<int> trial_combination{};
-    double error_probability{};
+    float error_probability{};
 };
 
-void _PRINT_ARRAY(int* bit_array, size_t ba_size, size_t block_length) {
-    for (size_t i = 0; i < ba_size; i++)
+void dbg_print_array(const int* const bit_array, size_t array_length, size_t block_length) {
+    for (size_t i = 0; i < array_length; i++)
     {
         if (i % block_length == 0 && i != 0)
         {
-            cout << " ";
+            std::cout << " ";
         }
-        cout << bit_array[i];
-        
+        std::cout << bit_array[i];
     }
-    cout << endl;
+    std::cout << endl;
 }
 
+// Returns the combination as a python tuple in string format
 string get_trial_combination_string(const vector<int>& combination) {
     string comb_str = "(";
     for (size_t i = 0; i < combination.size(); i++)
@@ -77,6 +98,7 @@ string get_trial_combination_string(const vector<int>& combination) {
     return comb_str;
 }
 
+// Records the results of the experiments in a ".csv" format file
 bool write_file(const vector<test_result>& data, string path) {
     try
     {
@@ -99,6 +121,7 @@ bool write_file(const vector<test_result>& data, string path) {
     }
 }
 
+// Computes combinations of runs, based on given elements as the Cartesian product of vectors
 vector<vector<int>> cartesian_product(vector<vector<int>> trial_elements) {
     auto product = [](long long a, vector<int>& b) { return a * b.size(); };
     const long long combination_number = accumulate(trial_elements.begin(), trial_elements.end(), 1LL, product);
@@ -113,6 +136,8 @@ vector<vector<int>> cartesian_product(vector<vector<int>> trial_elements) {
     return result;
 }
 
+// Generates combinations of runs consisting of the run number, combinations that determine 
+// the number of Winnow runs with a given block size, and the QBER probability
 vector<test_combination> prepare_combinations(vector<vector<int>> trial_elements, vector<double> bit_error_rates) {
     vector<vector<int>> trial_combinations = cartesian_product(trial_elements);
     vector<test_combination> combinations(trial_combinations.size() * bit_error_rates.size());
@@ -130,28 +155,27 @@ vector<test_combination> prepare_combinations(vector<vector<int>> trial_elements
     return combinations;
 }
 
-void generate_random_bit_array(size_t length, int* output_random_bit_array) {
-    // Initialize a Mersenne Twister engine for random number generation
-    mt19937 generator(time(0));
-    uniform_int_distribution<int> distribution(0, 1); // Distribution for 0 or 1
+// Generates Alice's key
+void generate_random_bit_array(mt19937& prng, size_t length, int* const output_random_bit_array) {
+    uniform_int_distribution<int> distribution(0, 1);
 
     // Generate random bits and fill the vector
     for (int i = 0; i < length; ++i) {
-        output_random_bit_array[i] = distribution(generator);
+        output_random_bit_array[i] = distribution(prng);
     }
 }
 
-void introduce_errors(int* bit_array, size_t array_length, double error_probability, int* output_bit_array_with_errors) {
-    mt19937 generator(time(0));
-    uniform_real_distribution<double> distribution(0.0, 1.0);
+// Generates Bob's key by making errors in Alice's key with a given QBER probability (Uniform distribution)
+void introduce_errors(mt19937& prng, const int* const bit_array, size_t array_length, float error_probability, int* const output_bit_array_with_errors) {
+    uniform_real_distribution<float> distribution(0.0, 1.0);
 
     for (int i = 0; i < array_length; ++i) {
-
-        output_bit_array_with_errors[i] = bit_array[i] ^ (distribution(generator) < error_probability);
+        output_bit_array_with_errors[i] = bit_array[i] ^ (distribution(prng) < error_probability);
     }
 }
 
-void discard_bits_for_parity_check(int* source_bit_array, size_t source_array_length, int* destination_bit_array, size_t syndrome_power) {
+// Discards bits at the first position in the block for privacy amplification
+void discard_bits_for_parity_check(const int* const source_bit_array, size_t source_array_length, int* const destination_bit_array, size_t syndrome_power) {
     int source_block_size = (int)pow(2, syndrome_power);
     int destination_block_size = source_block_size - 1;
     for (size_t i = 0, j = 0; i < source_array_length; i += source_block_size, j += destination_block_size) {
@@ -159,8 +183,10 @@ void discard_bits_for_parity_check(int* source_bit_array, size_t source_array_le
     }
 }
 
-void discard_bits_for_syndrome(int* source_bit_block, int* destination_bit_block, const vector<int>& discarded_bit_positions) {
+// Discards bits at positions 2^n, where n=(0,1, ... syndrome_power - 1) in the block for privacy amplification
+void discard_bits_for_syndrome(const int* const source_bit_block, int* const destination_bit_block, const vector<int>& discarded_bit_positions) {
     int destination_current_start = 0;
+    // Copying bits that are between the positions described in discarded_bit_positions 
     for (size_t i = 1; i < discarded_bit_positions.size() - 1; i++)
     {
         destination_current_start += discarded_bit_positions[i] - discarded_bit_positions[i - 1] - 1;
@@ -168,25 +194,29 @@ void discard_bits_for_syndrome(int* source_bit_block, int* destination_bit_block
     }
 }
 
-bool block_parity_check(int* bit_block, size_t block_length) {
+// Calculates the parity bit for a block
+bool calculate_block_parity(const int* const bit_block, size_t block_length) {
     return accumulate(bit_block, bit_block + block_length, 0) % 2 == 0;
 }
 
-void calculate_error_positions(int* alice_bit_array, int* bob_bit_array, size_t array_length, int* output_error_positions) {
+// Calculates an array that consists of 0 and 1, where 1 denotes that Alice's and Bob's bits are different
+void calculate_error_positions(const int* const alice_bit_array, const int* const bob_bit_array, size_t array_length, int* const output_error_positions) {
     for (size_t i = 0; i < array_length; i++)
     {
         output_error_positions[i] = alice_bit_array[i] ^ bob_bit_array[i];
     }
 }
 
-void shuffle_array_bits(int* alice_bit_array, int* bob_bit_array, size_t array_length, int seed) {
+// Shuffles Alice's and Bob's bit arrays by seed
+void shuffle_array_bits(int* const alice_bit_array, int* const bob_bit_array, size_t array_length, int seed) {
     mt19937 rng(seed);
     shuffle(alice_bit_array, alice_bit_array + array_length, rng);
     rng.seed(seed);
     shuffle(bob_bit_array, bob_bit_array + array_length, rng);
 }
 
-umat calculate_Hamming_hash_function(size_t syndrome_power) {
+// Computes a matrix based on the Hamming hash function
+umat calculate_Hamming_hash_matrix(size_t syndrome_power) {
     int block_length = (int)pow(2, syndrome_power) - 1;
 
     umat hash_matrix(syndrome_power, block_length);
@@ -200,21 +230,19 @@ umat calculate_Hamming_hash_function(size_t syndrome_power) {
     return hash_matrix;
 }
 
-void calculate_syndrome(int* bit_block, size_t block_length, const umat& hash_matrix, int* output_syndrome) {
+// Calculates the syndrome by multiplying the Hamming matrix by the bit block column vector
+void calculate_syndrome(const int* const bit_block, size_t block_length, const umat& hash_matrix, int* const output_syndrome) {
     ucolvec column_vector(block_length);
-    for (size_t i = 0; i < block_length; i++)
-    {
-        column_vector(i) = bit_block[i];
-    }
+    copy(bit_block, bit_block + block_length, column_vector.begin());
     ucolvec syndrome = hash_matrix * column_vector;
- 
     for (size_t i = 0; i < syndrome.size(); i++)
     {
         output_syndrome[i] = syndrome(i) % 2;
     }
 }
 
-void correct_error(int* bit_block, int* first_syndrome, int* second_syndrome, size_t syndrome_power) {
+// Calculates the error position in a block based on Alice's and Bob's syndromes and inverts this bit in Alice's block
+void correct_error(int* const bit_block, const int* const first_syndrome, const int* const second_syndrome, size_t syndrome_power) {
     int error_bit_position = -1;
     for (size_t i = 0; i < syndrome_power; i++)
     {
@@ -226,78 +254,84 @@ void correct_error(int* bit_block, int* first_syndrome, int* second_syndrome, si
     }
 }
 
-size_t winnow(int* alice_bit_array, int* bob_bit_array, size_t array_length, size_t syndrome_power, int* output_alice_bit_array, int* output_bob_bit_array) {
-    
-    size_t block_len = (int)pow(2, syndrome_power);
+size_t winnow(int* const alice_bit_array, int* const bob_bit_array, size_t array_length, size_t syndrome_power, int* const output_alice_bit_array, int* const output_bob_bit_array) {
+    size_t block_len = (size_t)pow(2, syndrome_power);
     size_t blocks_cnt = array_length / block_len;
-    umat hash_mat = calculate_Hamming_hash_function(syndrome_power);
+    umat hash_mat = calculate_Hamming_hash_matrix(syndrome_power);
 
-    vector<int> diff_par_blocks;
+    vector<int> diff_par_blocks;    // Contains the numbers of blocks whose parity bits did not match for Alice and Bob
     diff_par_blocks.reserve(blocks_cnt);
     for (size_t i = 0; i < array_length; i += block_len)
     {
-        if (block_parity_check(alice_bit_array + i, block_len) != block_parity_check(bob_bit_array + i, block_len))
+        if (calculate_block_parity(alice_bit_array + i, block_len) != calculate_block_parity(bob_bit_array + i, block_len))
         {
             diff_par_blocks.push_back((int)(i / block_len));
         }
     }
+
     #if DEBUG_WINNOW
-    cout << "______________DEBUG_WINNOW______________" << endl;
+    std::cout << "______________DEBUG_WINNOW______________" << endl;
     for (size_t i = 0; i < diff_par_blocks.size(); i++)
     {
-        cout << diff_par_blocks[i] << ' ';
+        std::cout << diff_par_blocks[i] << ' ';
     }
-    cout << endl;
+    std::cout << endl;
     #endif
 
-    size_t priv_amp_arr_len = array_length - (int)array_length / block_len;
+    size_t priv_amp_arr_len = array_length - (size_t)(array_length / block_len);
     int* alice_priv_amp = new int[priv_amp_arr_len];
     int* bob_priv_amp = new int[priv_amp_arr_len];
+    // Privacy amplification by discarding the first bit in each block.
     discard_bits_for_parity_check(alice_bit_array, array_length, alice_priv_amp, syndrome_power);
     discard_bits_for_parity_check(bob_bit_array, array_length, bob_priv_amp, syndrome_power);
 
     #if DEBUG_WINNOW
-    _PRINT_ARRAY(alice_bit_array, array_length, block_len);
-    _PRINT_ARRAY(bob_bit_array, array_length, block_len);
-    cout << endl;
-    _PRINT_ARRAY(alice_priv_amp, priv_amp_arr_len, block_len-1);
-    _PRINT_ARRAY(bob_priv_amp, priv_amp_arr_len, block_len-1);
-    cout << endl;
+    dbg_print_array(alice_bit_array, array_length, block_len);
+    dbg_print_array(bob_bit_array, array_length, block_len);
+    std::cout << endl;
+    dbg_print_array(alice_priv_amp, priv_amp_arr_len, block_len-1);
+    dbg_print_array(bob_priv_amp, priv_amp_arr_len, block_len-1);
+    std::cout << endl;
     #endif
 
     block_len -= 1;
+    // Alice and Bob syndromes
     int* alice_syn = new int[syndrome_power];
     int* bob_syn = new int[syndrome_power];
     for (size_t i = 0; i < diff_par_blocks.size(); i++)
     {
+        // Calculation of syndromes for blocks with non-matching parity bits, followed by error correction
         calculate_syndrome(alice_priv_amp + (diff_par_blocks[i] * block_len), block_len, hash_mat, alice_syn);
         calculate_syndrome(bob_priv_amp + (diff_par_blocks[i] * block_len), block_len, hash_mat, bob_syn);
         correct_error(alice_priv_amp + (diff_par_blocks[i] * block_len), alice_syn, bob_syn, syndrome_power);
     }
     delete[] alice_syn;
     delete[] bob_syn;
+
     #if DEBUG_WINNOW
-    _PRINT_ARRAY(alice_priv_amp, priv_amp_arr_len, block_len);
-    _PRINT_ARRAY(bob_priv_amp, priv_amp_arr_len, block_len);
-    cout << endl;
+    dbg_print_array(alice_priv_amp, priv_amp_arr_len, block_len);
+    dbg_print_array(bob_priv_amp, priv_amp_arr_len, block_len);
+    std::cout << endl;
     #endif 
 
-    size_t remain_bits_cnt = block_len - syndrome_power;
+    size_t remain_bits_cnt = block_len - syndrome_power;   // Number of remaining bits in blocks for which syndromes were calculated
     size_t out_arr_len = priv_amp_arr_len - diff_par_blocks.size() * syndrome_power;
 
-    vector<int> disc_bit_pos(syndrome_power + 1);
+    // Contains bounds that specify valid bits [from 2^0, 2^1, ... , 2^(syndrome_power-1)], 
+    // and the last element (2^syndrome_power) which is the right boundary
+    vector<int> disc_bit_pos(syndrome_power + 1);   
     for (size_t i = 0; i < disc_bit_pos.size(); i++)
     {
         disc_bit_pos[i] = (int)(pow(2, i) - 1);
     }
 
-    size_t j = 0;
-    size_t copy_delta = 0;
-    size_t dest_cur_pos = 0;
+    size_t j = 0;               // Used to move through diff_par_blocks
+    size_t copy_delta = 0;      // Specifies the number of bits that can be copied 
+    size_t dest_cur_pos = 0;    // The current position in the destination array from which new bits can be inserted
     size_t diff_par_len = diff_par_blocks.size();
     for (size_t i = 0; i < priv_amp_arr_len; )
     {
-        if (j < diff_par_len && (i / block_len == diff_par_blocks[j]))
+        if (j < diff_par_len && (i / block_len == diff_par_blocks[j]))      // In a block whose number is in diff_par_blocks, bits are discarded
         {
             discard_bits_for_syndrome(alice_priv_amp + i, output_alice_bit_array + dest_cur_pos, disc_bit_pos);
             discard_bits_for_syndrome(bob_priv_amp + i, output_bob_bit_array + dest_cur_pos, disc_bit_pos);
@@ -305,13 +339,13 @@ size_t winnow(int* alice_bit_array, int* bob_bit_array, size_t array_length, siz
             i += block_len;
             j++;
         }
-        else if (diff_par_len == 0) 
+        else if (diff_par_len == 0)     // No errors in arrays -> copy the array completely
         {
             copy(alice_priv_amp, alice_priv_amp + priv_amp_arr_len, output_alice_bit_array);
             copy(bob_priv_amp, bob_priv_amp + priv_amp_arr_len, output_bob_bit_array);
             i += priv_amp_arr_len;
         }
-        else if (j >= diff_par_len)
+        else if (j >= diff_par_len)     // Remaining blocks with no errors are copied
         {
             copy_delta = priv_amp_arr_len - i;
             copy(alice_priv_amp + i, alice_priv_amp + i + copy_delta, output_alice_bit_array + dest_cur_pos);
@@ -320,7 +354,7 @@ size_t winnow(int* alice_bit_array, int* bob_bit_array, size_t array_length, siz
         }
         else
         {
-            copy_delta = diff_par_blocks[j] * block_len - i;
+            copy_delta = diff_par_blocks[j] * block_len - i;    // Blocks between two erroneous blocks are copied
             copy(alice_priv_amp + i, alice_priv_amp + i + copy_delta, output_alice_bit_array + dest_cur_pos);
             copy(bob_priv_amp + i, bob_priv_amp + i + copy_delta, output_bob_bit_array + dest_cur_pos);
             dest_cur_pos += copy_delta;
@@ -328,9 +362,9 @@ size_t winnow(int* alice_bit_array, int* bob_bit_array, size_t array_length, siz
         }
     }
     #if DEBUG_WINNOW
-    _PRINT_ARRAY(output_alice_bit_array, out_arr_len, block_len);
-    _PRINT_ARRAY(output_bob_bit_array, out_arr_len, block_len);
-    cout << "______________DEBUG_WINNOW______________\n" << endl;
+    dbg_print_array(output_alice_bit_array, out_arr_len, block_len);
+    dbg_print_array(output_bob_bit_array, out_arr_len, block_len);
+    std::cout << "______________DEBUG_WINNOW______________\n" << endl;
     #endif
 
     delete[] alice_priv_amp;
@@ -339,9 +373,10 @@ size_t winnow(int* alice_bit_array, int* bob_bit_array, size_t array_length, siz
     return out_arr_len;
 }
 
-size_t run_trial(int* alice_bit_array, int* bob_bit_array, size_t array_length, const vector<int>& trial_combination, bool shuffle_bits, int* output_alice_bit_array, int* output_bob_bit_array){
+// Runs the Winnow algorithm sequentially several times with different block sizes
+size_t run_trial(const int* const alice_bit_array, const int* const bob_bit_array, size_t array_length, const vector<int>& trial_combination, bool shuffle_bits, int* const output_alice_bit_array, int* const output_bob_bit_array){
     int seed = 0;
-    size_t block_length;
+    size_t block_length = 0;
     size_t discarded_bits_number = 0;
     size_t trimmed_array_length = array_length;
     size_t syndrome_power = INITIAL_SYNDROME_POWER;
@@ -355,7 +390,7 @@ size_t run_trial(int* alice_bit_array, int* bob_bit_array, size_t array_length, 
         block_length = (int)pow(2, syndrome_power);
         for (size_t j = 0; j < trial_combination[i]; j++)
         {
-            discarded_bits_number = trimmed_array_length % block_length;
+            discarded_bits_number = trimmed_array_length % block_length;    // Before each Winnow run, trims bit arrays to be a multiple of the current block length
             trimmed_array_length -= discarded_bits_number;
             trimmed_array_length = winnow(current_alice_bit_array, current_bob_bit_array, trimmed_array_length, syndrome_power, output_alice_bit_array, output_bob_bit_array);
             if (shuffle_bits) {
@@ -373,7 +408,9 @@ size_t run_trial(int* alice_bit_array, int* bob_bit_array, size_t array_length, 
     return trimmed_array_length;
 }
 
-test_result run_test(const test_combination combination) {
+// Runs the experiment with the given TRIAL_NUMBER- times combination and calculates 
+// the final average key error rate and the final average key fraction
+test_result run_test(const test_combination combination)  {
     int errors_number = 0;
     size_t output_array_length = 0;
     double mean_final_error = 0;
@@ -384,10 +421,14 @@ test_result run_test(const test_combination combination) {
     int* output_bob_bit_array = new int[SIFTED_KEY_LENGTH] {};
     int* error_positions_array = new int[SIFTED_KEY_LENGTH];
 
+    // Pseudo-random number generators
+    mt19937 prng_1(time(nullptr));
+    mt19937 prng_2(time(nullptr) + 666);
+
     for (size_t i = 0; i < TRIAL_NUMBER; i++)
     {
-        generate_random_bit_array(SIFTED_KEY_LENGTH, alice_bit_array);
-        introduce_errors(alice_bit_array, SIFTED_KEY_LENGTH, combination.error_probability, bob_bit_array);
+        generate_random_bit_array(prng_1, SIFTED_KEY_LENGTH, alice_bit_array);
+        introduce_errors(prng_2, alice_bit_array, SIFTED_KEY_LENGTH, combination.error_probability, bob_bit_array);
         output_array_length = run_trial(alice_bit_array, bob_bit_array, SIFTED_KEY_LENGTH, combination.trial_combination, SHUFFLE_MODE, output_alice_bit_array, output_bob_bit_array);
         
         calculate_error_positions(output_alice_bit_array, output_bob_bit_array, output_array_length, error_positions_array);
@@ -407,13 +448,14 @@ test_result run_test(const test_combination combination) {
     test_result result;
     result.test_number = combination.test_number;
     result.trial_combination = combination.trial_combination;
-    result.error_probability = combination.error_probability;
+    result.error_probability = (double)combination.error_probability;
     result.mean_final_error = mean_final_error;
     result.mean_remaining_fraction = mean_remaining_fraction;
     return result;
 }
 
-vector<test_result> run_simulation(const vector<test_combination>& combinations) {
+// Distributes all combinations of the experiment evenly across the CPU threads and runs it
+vector<test_result> run_all_experiments(const vector<test_combination>& combinations) {
     vector<test_result> results(combinations.size());
     BS::thread_pool pool(THREADS_NUMBER);
 
@@ -451,11 +493,12 @@ vector<test_result> run_simulation(const vector<test_combination>& combinations)
 }
 
 int main() {
-    srand(time(0));
+    #if not DEBUG_MAIN
+    srand(time(nullptr));
 
-    vector<test_combination> combinations = prepare_combinations(COMBINATION_ELEMENTS, BER);
-    vector<test_result> result = run_simulation(combinations);
-    cout << "All tests were completed successfully! \nThe results will be written to the directory: " << RESULT_FILE_PATH << endl;
+    vector<test_combination> combinations = prepare_combinations(COMBINATION_ELEMENTS, QBER);
+    vector<test_result> result = run_all_experiments(combinations);
+    std::cout << "All tests were completed successfully! \nThe results will be written to the directory: " << RESULT_FILE_PATH << endl;
     if (write_file(result, RESULT_FILE_PATH))
     {
         printf("The results were written to the file successfully!");
@@ -465,25 +508,40 @@ int main() {
         printf("An error occurred while writing to the file");
     }
 
-    //for (size_t i = 0; i < result.size(); i++)
-    //{
-    //    for (size_t j = 0; j < result[i].size(); j++)
-    //    {
-    //        cout << result[i][j] <<" ";
-    //    }
-    //    cout << endl;
-    //}
+    #else
+    int* a_array = new int[32] 
+        {0, 1, 0, 1, 1, 1, 0, 0,
+         1, 1, 0, 1, 0, 1, 1, 1,
+         0, 1, 0, 1, 1, 1, 0, 0,
+         0, 1, 1, 1, 0, 1, 0, 1};
+    int* b_array = new int[32] 
+       {0, 1, 0, 1, 1, 1, 0, 0,
+        1, 1, 0, 1, 0, 1, 1, 1,
+        0, 1, 0, 1, 1, 1, 0, 0,
+        0, 1, 1, 1, 0, 1, 0, 1};
 
+    b_array[10] = 1;    // block #2
 
-    //vector<int> comb = { 4,4,4,4,4 };
+    b_array[17] = 0;    // block #3
+    b_array[23] = 1;
 
-    //auto start_time = steady_clock::now();
-    //for (size_t i = 0; i < 100; i++)
-    //{
-    //    test_result tst_res = run_test(comb, 0.15, 0);
-    //}
-    //auto end_time = steady_clock::now();
-    //duration<double> execution_time = end_time - start_time;
-    //cout << "\n" << execution_time << endl; 
+    b_array[24] = 1;    // block #4
+    b_array[25] = 0;
+    b_array[26] = 0;
+
+    std::cout << "______________DEBUG_MAIN______________" << endl;
+    dbg_print_array(a_array, 32, 8);
+    dbg_print_array(b_array, 32, 8);
+    std::cout << "_ _ _ _ _ _ _ DEBUG_MAIN _ _ _ _ _ _ _\n" << endl;
+
+    int* a_out_array = new int[32];
+    int* b_out_array = new int[32];
+    size_t out_len = winnow(a_array, b_array, 32, INITIAL_SYNDROME_POWER, a_out_array, b_out_array);
+
+    std::cout << "_ _ _ _ _ _ _ DEBUG_MAIN _ _ _ _ _ _ _" << endl;
+    dbg_print_array(a_array, out_len, 100);
+    dbg_print_array(b_array, out_len, 100);
+    std::cout << "______________DEBUG_MAIN______________" << endl;
+    #endif
      return 0;
 }
