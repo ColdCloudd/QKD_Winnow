@@ -4,7 +4,7 @@
 #include <chrono>
 #include <numeric>
 #include <iostream>
-#include <armadillo>
+#include <fstream>
 
 #include "BS_thread_pool.hpp"
 #include <indicators/progress_bar.hpp>
@@ -14,7 +14,6 @@
 #define DEBUG_WINNOW false
 
 using namespace std;
-using namespace arma;
 using namespace chrono;
 using namespace indicators;
 
@@ -141,7 +140,7 @@ vector<vector<int>> cartesian_product(vector<vector<int>> trial_elements) {
 vector<test_combination> prepare_combinations(vector<vector<int>> trial_elements, vector<double> bit_error_rates) {
     vector<vector<int>> trial_combinations = cartesian_product(trial_elements);
     vector<test_combination> combinations(trial_combinations.size() * bit_error_rates.size());
-    int test_number = 0;
+    size_t test_number = 0;
     for (size_t i = 0; i < trial_combinations.size(); i++)
     {
         for (size_t j = 0; j < bit_error_rates.size(); j++)
@@ -167,17 +166,35 @@ void generate_random_bit_array(mt19937& prng, size_t length, int* const output_r
 
 // Generates Bob's key by making errors in Alice's key with a given QBER probability (Uniform distribution)
 void introduce_errors(mt19937& prng, const int* const bit_array, size_t array_length, float error_probability, int* const output_bit_array_with_errors) {
-    uniform_real_distribution<float> distribution(0.0, 1.0);
+    size_t num_errors = static_cast<size_t>(array_length * error_probability);
+    if (num_errors == 0)
+    {
+        copy(bit_array, bit_array + array_length, output_bit_array_with_errors);
+    }
+    else
+    {
+        size_t* error_positions = new size_t[array_length];
+        for (size_t i = 0; i < array_length; ++i)
+        {
+            error_positions[i] = i;
+        }
 
-    for (int i = 0; i < array_length; ++i) {
-        output_bit_array_with_errors[i] = bit_array[i] ^ (distribution(prng) < error_probability);
+        shuffle(error_positions, error_positions + array_length, prng);
+        copy(bit_array, bit_array + array_length, output_bit_array_with_errors);
+
+        for (size_t i = 0; i < num_errors; ++i)
+        {
+            output_bit_array_with_errors[error_positions[i]] ^= 1;
+        }
+
+        delete[] error_positions;
     }
 }
 
 // Discards bits at the first position in the block for privacy amplification
-void discard_bits_for_parity_check(const int* const source_bit_array, size_t source_array_length, int* const destination_bit_array, size_t syndrome_power) {
-    int source_block_size = (int)pow(2, syndrome_power);
-    int destination_block_size = source_block_size - 1;
+void discard_bits_for_parity_check(const int* const source_bit_array, const size_t& source_array_length, int* const destination_bit_array, const size_t& syndrome_power) {
+    size_t source_block_size = static_cast<size_t>(pow(2, syndrome_power));
+    size_t destination_block_size = source_block_size - 1;
     for (size_t i = 0, j = 0; i < source_array_length; i += source_block_size, j += destination_block_size) {
         copy(source_bit_array + i + 1, source_bit_array + i + source_block_size, destination_bit_array + j);
     }
@@ -195,7 +212,7 @@ void discard_bits_for_syndrome(const int* const source_bit_block, int* const des
 }
 
 // Calculates the parity bit for a block
-bool calculate_block_parity(const int* const bit_block, size_t block_length) {
+bool calculate_block_parity(const int* const bit_block, const size_t& block_length) {
     return accumulate(bit_block, bit_block + block_length, 0) % 2 == 0;
 }
 
@@ -216,33 +233,40 @@ void shuffle_array_bits(int* const alice_bit_array, int* const bob_bit_array, si
 }
 
 // Computes a matrix based on the Hamming hash function
-umat calculate_Hamming_hash_matrix(size_t syndrome_power) {
-    int block_length = (int)pow(2, syndrome_power) - 1;
+int** calculate_Hamming_hash_matrix(size_t syndrome_power) {
+    size_t block_length = static_cast<size_t>(pow(2, syndrome_power)) - 1;
 
-    umat hash_matrix(syndrome_power, block_length);
-    for (int i = 0; i < hash_matrix.n_rows; i++)
+    int** hash_matrix = new int* [syndrome_power];
+    for (size_t i = 0; i < syndrome_power; ++i)
     {
-        for (int j = 0; j < hash_matrix.n_cols; j++)
+        hash_matrix[i] = new int[block_length];
+        for (size_t j = 0; j < block_length; ++j)
         {
-            hash_matrix(i, j) = (int)floor((j + 1) / pow(2, i)) % 2;
+            hash_matrix[i][j] = static_cast<int>(floor((j + 1) / pow(2, i))) % 2;
         }
     }
     return hash_matrix;
 }
 
 // Calculates the syndrome by multiplying the Hamming matrix by the bit block column vector
-void calculate_syndrome(const int* const bit_block, size_t block_length, const umat& hash_matrix, int* const output_syndrome) {
-    ucolvec column_vector(block_length);
-    copy(bit_block, bit_block + block_length, column_vector.begin());
-    ucolvec syndrome = hash_matrix * column_vector;
-    for (size_t i = 0; i < syndrome.size(); i++)
+void calculate_syndrome(const int* const bit_block, const size_t& syndrome_power, const size_t& block_length, const int* const* hash_matrix, int* const output_syndrome) {
+    int xor_sum;
+    for (size_t i = 0; i < syndrome_power; i++)
     {
-        output_syndrome[i] = syndrome(i) % 2;
+        xor_sum = 0;
+        for (size_t j = 0; j < block_length; j++)
+        {
+            if (bit_block[j])
+            {
+                xor_sum ^= hash_matrix[i][j];
+            }
+        }
+        output_syndrome[i] = xor_sum;
     }
 }
 
 // Calculates the error position in a block based on Alice's and Bob's syndromes and inverts this bit in Alice's block
-void correct_error(int* const bit_block, const int* const first_syndrome, const int* const second_syndrome, size_t syndrome_power) {
+void correct_error(int* const bit_block, const int* const first_syndrome, const int* const second_syndrome, const size_t& syndrome_power) {
     int error_bit_position = -1;
     for (size_t i = 0; i < syndrome_power; i++)
     {
@@ -255,9 +279,9 @@ void correct_error(int* const bit_block, const int* const first_syndrome, const 
 }
 
 size_t winnow(int* const alice_bit_array, int* const bob_bit_array, size_t array_length, size_t syndrome_power, int* const output_alice_bit_array, int* const output_bob_bit_array) {
-    size_t block_len = (size_t)pow(2, syndrome_power);
+    size_t block_len = static_cast<size_t>(pow(2, syndrome_power));
     size_t blocks_cnt = array_length / block_len;
-    umat hash_mat = calculate_Hamming_hash_matrix(syndrome_power);
+    int** hash_mat = calculate_Hamming_hash_matrix(syndrome_power);
 
     vector<int> diff_par_blocks;    // Contains the numbers of blocks whose parity bits did not match for Alice and Bob
     diff_par_blocks.reserve(blocks_cnt);
@@ -265,7 +289,7 @@ size_t winnow(int* const alice_bit_array, int* const bob_bit_array, size_t array
     {
         if (calculate_block_parity(alice_bit_array + i, block_len) != calculate_block_parity(bob_bit_array + i, block_len))
         {
-            diff_par_blocks.push_back((int)(i / block_len));
+            diff_par_blocks.push_back(static_cast<int>(i / block_len));
         }
     }
 
@@ -278,7 +302,7 @@ size_t winnow(int* const alice_bit_array, int* const bob_bit_array, size_t array
     std::cout << endl;
     #endif
 
-    size_t priv_amp_arr_len = array_length - (size_t)(array_length / block_len);
+    size_t priv_amp_arr_len = array_length - static_cast<size_t>(array_length / block_len);
     int* alice_priv_amp = new int[priv_amp_arr_len];
     int* bob_priv_amp = new int[priv_amp_arr_len];
     // Privacy amplification by discarding the first bit in each block.
@@ -301,12 +325,18 @@ size_t winnow(int* const alice_bit_array, int* const bob_bit_array, size_t array
     for (size_t i = 0; i < diff_par_blocks.size(); i++)
     {
         // Calculation of syndromes for blocks with non-matching parity bits, followed by error correction
-        calculate_syndrome(alice_priv_amp + (diff_par_blocks[i] * block_len), block_len, hash_mat, alice_syn);
-        calculate_syndrome(bob_priv_amp + (diff_par_blocks[i] * block_len), block_len, hash_mat, bob_syn);
+        calculate_syndrome(alice_priv_amp + (diff_par_blocks[i] * block_len), syndrome_power, block_len, hash_mat, alice_syn);
+        calculate_syndrome(bob_priv_amp + (diff_par_blocks[i] * block_len), syndrome_power, block_len, hash_mat, bob_syn);
         correct_error(alice_priv_amp + (diff_par_blocks[i] * block_len), alice_syn, bob_syn, syndrome_power);
     }
+
+    for (size_t i = 0; i < syndrome_power; ++i) {
+        delete[] hash_mat[i];
+    }
+    delete[] hash_mat;
     delete[] alice_syn;
     delete[] bob_syn;
+    
 
     #if DEBUG_WINNOW
     dbg_print_array(alice_priv_amp, priv_amp_arr_len, block_len);
@@ -387,7 +417,7 @@ size_t run_trial(const int* const alice_bit_array, const int* const bob_bit_arra
     memcpy(current_bob_bit_array, bob_bit_array, array_length * sizeof(int));
     for (size_t i = 0; i < trial_combination.size(); i++)
     {
-        block_length = (int)pow(2, syndrome_power);
+        block_length = static_cast<size_t>(pow(2, syndrome_power));
         for (size_t j = 0; j < trial_combination[i]; j++)
         {
             discarded_bits_number = trimmed_array_length % block_length;    // Before each Winnow run, trims bit arrays to be a multiple of the current block length
@@ -411,7 +441,7 @@ size_t run_trial(const int* const alice_bit_array, const int* const bob_bit_arra
 // Runs the experiment with the given TRIAL_NUMBER- times combination and calculates 
 // the final average key error rate and the final average key fraction
 test_result run_test(const test_combination combination)  {
-    int errors_number = 0;
+    size_t errors_number = 0;
     size_t output_array_length = 0;
     double mean_final_error = 0;
     double mean_remaining_fraction = 0;
@@ -433,11 +463,11 @@ test_result run_test(const test_combination combination)  {
         
         calculate_error_positions(output_alice_bit_array, output_bob_bit_array, output_array_length, error_positions_array);
         errors_number = accumulate(error_positions_array, error_positions_array + output_array_length, 0);
-        mean_final_error += (double)errors_number / (double)output_array_length;
-        mean_remaining_fraction += (double)output_array_length / (double)SIFTED_KEY_LENGTH;
+        mean_final_error += static_cast<double>(errors_number) / static_cast<double>(output_array_length);
+        mean_remaining_fraction += static_cast<double>(output_array_length) / static_cast<double>(SIFTED_KEY_LENGTH);
     }
-    mean_final_error = mean_final_error / (double)TRIAL_NUMBER;
-    mean_remaining_fraction = mean_remaining_fraction / (double)TRIAL_NUMBER;
+    mean_final_error = mean_final_error / static_cast<double>(TRIAL_NUMBER);
+    mean_remaining_fraction = mean_remaining_fraction / static_cast<double>(TRIAL_NUMBER);
 
     delete[] alice_bit_array;
     delete[] bob_bit_array;
@@ -448,7 +478,7 @@ test_result run_test(const test_combination combination)  {
     test_result result;
     result.test_number = combination.test_number;
     result.trial_combination = combination.trial_combination;
-    result.error_probability = (double)combination.error_probability;
+    result.error_probability = static_cast<double>(combination.error_probability);
     result.mean_final_error = mean_final_error;
     result.mean_remaining_fraction = mean_remaining_fraction;
     return result;
@@ -475,7 +505,7 @@ vector<test_result> run_all_experiments(const vector<test_combination>& combinat
       option::MaxProgress{combinations.size()}
     };
 
-    int iteration = 1;
+    size_t iteration = 1;
     pool.detach_loop<size_t>(0, combinations.size(),
         [&combinations, &results, &bar, &iteration](size_t i)
         {
@@ -539,8 +569,8 @@ int main() {
     size_t out_len = winnow(a_array, b_array, 32, INITIAL_SYNDROME_POWER, a_out_array, b_out_array);
 
     std::cout << "_ _ _ _ _ _ _ DEBUG_MAIN _ _ _ _ _ _ _" << endl;
-    dbg_print_array(a_array, out_len, 100);
-    dbg_print_array(b_array, out_len, 100);
+    dbg_print_array(a_out_array, out_len, 100);
+    dbg_print_array(b_out_array, out_len, 100);
     std::cout << "______________DEBUG_MAIN______________" << endl;
     #endif
      return 0;
