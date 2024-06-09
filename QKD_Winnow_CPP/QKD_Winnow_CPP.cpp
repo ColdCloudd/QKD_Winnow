@@ -18,26 +18,29 @@ using namespace chrono;
 using namespace indicators;
 
 //------------------------CONFIG PARAMETERS------------------------
-// Number of runs with one combination
-const int TRIAL_NUMBER = 100;
-
 // Number of threads for parallelizing runs
-const int THREADS_NUMBER = 16;
+const size_t THREADS_NUMBER = 16;
+
+// Number of runs with one combination
+const size_t TRIALS_NUMBER = 100;
+
+// Initial seed for pseudorandom number generators (PRNG)
+const size_t SIMULATION_SEED = time(nullptr);
 
 // Bit shuffling between protocol iterations 
 const bool SHUFFLE_MODE = true;
 
 // Initial key size
-const int SIFTED_KEY_LENGTH = 10240;
+const size_t SIFTED_KEY_LENGTH = 10240;
 
 // Initial power of syndrome. Determines the length of the block (2^3, then 2^4, etc.)
-const int INITIAL_SYNDROME_POWER = 3;
+const size_t INITIAL_SYNDROME_POWER = 3;
 
 // Average error rate in the key
 const vector<double> QBER = { 0.01, 0.03, 0.05, 0.06, 0.08, 0.1, 0.12, 0.15 };
 
 // Folder path for saving ".csv" files with the results of the experiment 
-const string RESULT_FILE_PATH = "C:\\Users\\AGENT\\Desktop\\QKD_Winnow_CPP\\results\\";
+const string RESULT_FILE_PATH = "C:\\Users\\AGENT\\Desktop\\WINNOW\\QKD_Winnow_CPP\\results\\";
 
 // The numbers in the first vector determine the number of Winnow runs with a block length of 2^3, 
 // the numbers in the second vector determine the number of runs with a block length of 2^4, and so on.
@@ -67,7 +70,8 @@ struct test_combination
     float error_probability{};
 };
 
-void dbg_print_array(const int* const bit_array, size_t array_length, size_t block_length) {
+void print_array(const int* const bit_array, size_t array_length, size_t block_length) 
+{
     for (size_t i = 0; i < array_length; i++)
     {
         if (i % block_length == 0 && i != 0)
@@ -80,7 +84,8 @@ void dbg_print_array(const int* const bit_array, size_t array_length, size_t blo
 }
 
 // Returns the combination as a python tuple in string format
-string get_trial_combination_string(const vector<int>& combination) {
+string get_trial_combination_string(const vector<int>& combination) 
+{
     string comb_str = "(";
     for (size_t i = 0; i < combination.size(); i++)
     {
@@ -97,12 +102,14 @@ string get_trial_combination_string(const vector<int>& combination) {
     return comb_str;
 }
 
-// Records the results of the experiments in a ".csv" format file
-bool write_file(const vector<test_result>& data, string path) {
+// Records the results of the simulation in a ".csv" format file
+bool write_file(const vector<test_result>& data, string directory)
+{
     try
     {
-        string filename = path + "winnow_res_cpp" + (string)"(trial_num=" + to_string(TRIAL_NUMBER)
-            + (string)",shuff_mode=" + to_string(SHUFFLE_MODE) + ")" + (string)".csv";
+        string filename = directory + "winnow_cpp(trial_num=" + to_string(TRIALS_NUMBER)
+            + ",shuff_mode=" + to_string(SHUFFLE_MODE) + ",seed=" + to_string(SIMULATION_SEED) 
+            + ").csv";
         fstream fout;
         fout.open(filename, ios::out | ios::trunc);
         for (size_t i = 0; i < data.size(); i++)
@@ -115,13 +122,14 @@ bool write_file(const vector<test_result>& data, string path) {
     }
     catch (const std::exception& ex)
     {
-        printf("Error occured (write_file): %s", ex.what());
+        cerr << "Error occured (write_file): " << ex.what() << endl;
         return false;
     }
 }
 
 // Computes combinations of runs, based on given elements as the Cartesian product of vectors
-vector<vector<int>> cartesian_product(vector<vector<int>> trial_elements) {
+vector<vector<int>> cartesian_product(vector<vector<int>> trial_elements) 
+{
     auto product = [](long long a, vector<int>& b) { return a * b.size(); };
     const long long combination_number = accumulate(trial_elements.begin(), trial_elements.end(), 1LL, product);
     vector<vector<int>> result(combination_number, vector<int>(trial_elements.size()));
@@ -137,7 +145,8 @@ vector<vector<int>> cartesian_product(vector<vector<int>> trial_elements) {
 
 // Generates combinations of runs consisting of the run number, combinations that determine 
 // the number of Winnow runs with a given block size, and the QBER probability
-vector<test_combination> prepare_combinations(vector<vector<int>> trial_elements, vector<double> bit_error_rates) {
+vector<test_combination> prepare_combinations(vector<vector<int>> trial_elements, vector<double> bit_error_rates) 
+{
     vector<vector<int>> trial_combinations = cartesian_product(trial_elements);
     vector<test_combination> combinations(trial_combinations.size() * bit_error_rates.size());
     size_t test_number = 0;
@@ -155,7 +164,8 @@ vector<test_combination> prepare_combinations(vector<vector<int>> trial_elements
 }
 
 // Generates Alice's key
-void generate_random_bit_array(mt19937& prng, size_t length, int* const output_random_bit_array) {
+void generate_random_bit_array(mt19937& prng, size_t length, int* const output_random_bit_array) 
+{
     uniform_int_distribution<int> distribution(0, 1);
 
     // Generate random bits and fill the vector
@@ -165,7 +175,9 @@ void generate_random_bit_array(mt19937& prng, size_t length, int* const output_r
 }
 
 // Generates Bob's key by making errors in Alice's key with a given QBER probability (Uniform distribution)
-void introduce_errors(mt19937& prng, const int* const bit_array, size_t array_length, float error_probability, int* const output_bit_array_with_errors) {
+void introduce_errors(mt19937& prng, const int* const bit_array, size_t array_length, float error_probability, 
+    int* const output_bit_array_with_errors) 
+{
     size_t num_errors = static_cast<size_t>(array_length * error_probability);
     if (num_errors == 0)
     {
@@ -192,7 +204,9 @@ void introduce_errors(mt19937& prng, const int* const bit_array, size_t array_le
 }
 
 // Discards bits at the first position in the block for privacy amplification
-void discard_bits_for_parity_check(const int* const source_bit_array, const size_t& source_array_length, int* const destination_bit_array, const size_t& syndrome_power) {
+void discard_bits_for_parity_check(const int* const source_bit_array, const size_t& source_array_length, 
+    int* const destination_bit_array, const size_t& syndrome_power) 
+{
     size_t source_block_size = static_cast<size_t>(pow(2, syndrome_power));
     size_t destination_block_size = source_block_size - 1;
     for (size_t i = 0, j = 0; i < source_array_length; i += source_block_size, j += destination_block_size) {
@@ -201,7 +215,9 @@ void discard_bits_for_parity_check(const int* const source_bit_array, const size
 }
 
 // Discards bits at positions 2^n, where n=(0,1, ... syndrome_power - 1) in the block for privacy amplification
-void discard_bits_for_syndrome(const int* const source_bit_block, int* const destination_bit_block, const vector<int>& discarded_bit_positions) {
+void discard_bits_for_syndrome(const int* const source_bit_block, int* const destination_bit_block, 
+    const vector<int>& discarded_bit_positions) 
+{
     int destination_current_start = 0;
     // Copying bits that are between the positions described in discarded_bit_positions 
     for (size_t i = 1; i < discarded_bit_positions.size() - 1; i++)
@@ -212,12 +228,15 @@ void discard_bits_for_syndrome(const int* const source_bit_block, int* const des
 }
 
 // Calculates the parity bit for a block
-bool calculate_block_parity(const int* const bit_block, const size_t& block_length) {
+bool calculate_block_parity(const int* const bit_block, const size_t& block_length) 
+{
     return accumulate(bit_block, bit_block + block_length, 0) % 2 == 0;
 }
 
 // Calculates an array that consists of 0 and 1, where 1 denotes that Alice's and Bob's bits are different
-void calculate_error_positions(const int* const alice_bit_array, const int* const bob_bit_array, size_t array_length, int* const output_error_positions) {
+void calculate_error_positions(const int* const alice_bit_array, const int* const bob_bit_array, size_t array_length,
+    int* const output_error_positions) 
+{
     for (size_t i = 0; i < array_length; i++)
     {
         output_error_positions[i] = alice_bit_array[i] ^ bob_bit_array[i];
@@ -225,7 +244,8 @@ void calculate_error_positions(const int* const alice_bit_array, const int* cons
 }
 
 // Shuffles Alice's and Bob's bit arrays by seed
-void shuffle_array_bits(int* const alice_bit_array, int* const bob_bit_array, size_t array_length, int seed) {
+void shuffle_array_bits(int* const alice_bit_array, int* const bob_bit_array, size_t array_length, int seed) 
+{
     mt19937 rng(seed);
     shuffle(alice_bit_array, alice_bit_array + array_length, rng);
     rng.seed(seed);
@@ -233,7 +253,8 @@ void shuffle_array_bits(int* const alice_bit_array, int* const bob_bit_array, si
 }
 
 // Computes a matrix based on the Hamming hash function
-int** calculate_Hamming_hash_matrix(size_t syndrome_power) {
+int** calculate_Hamming_hash_matrix(size_t syndrome_power) 
+{
     size_t block_length = static_cast<size_t>(pow(2, syndrome_power)) - 1;
 
     int** hash_matrix = new int* [syndrome_power];
@@ -249,7 +270,9 @@ int** calculate_Hamming_hash_matrix(size_t syndrome_power) {
 }
 
 // Calculates the syndrome by multiplying the Hamming matrix by the bit block column vector
-void calculate_syndrome(const int* const bit_block, const size_t& syndrome_power, const size_t& block_length, const int* const* hash_matrix, int* const output_syndrome) {
+void calculate_syndrome(const int* const bit_block, const size_t& syndrome_power, const size_t& block_length, 
+    const int* const* hash_matrix, int* const output_syndrome) 
+{
     int xor_sum;
     for (size_t i = 0; i < syndrome_power; i++)
     {
@@ -266,7 +289,9 @@ void calculate_syndrome(const int* const bit_block, const size_t& syndrome_power
 }
 
 // Calculates the error position in a block based on Alice's and Bob's syndromes and inverts this bit in Alice's block
-void correct_error(int* const bit_block, const int* const first_syndrome, const int* const second_syndrome, const size_t& syndrome_power) {
+void correct_error(int* const bit_block, const int* const first_syndrome, const int* const second_syndrome, 
+    const size_t& syndrome_power) 
+{
     int error_bit_position = -1;
     for (size_t i = 0; i < syndrome_power; i++)
     {
@@ -278,7 +303,9 @@ void correct_error(int* const bit_block, const int* const first_syndrome, const 
     }
 }
 
-size_t winnow(int* const alice_bit_array, int* const bob_bit_array, size_t array_length, size_t syndrome_power, int* const output_alice_bit_array, int* const output_bob_bit_array) {
+size_t winnow(int* const alice_bit_array, int* const bob_bit_array, size_t array_length, size_t syndrome_power, 
+    int* const output_alice_bit_array, int* const output_bob_bit_array) 
+{
     size_t block_len = static_cast<size_t>(pow(2, syndrome_power));
     size_t blocks_cnt = array_length / block_len;
     int** hash_mat = calculate_Hamming_hash_matrix(syndrome_power);
@@ -310,11 +337,11 @@ size_t winnow(int* const alice_bit_array, int* const bob_bit_array, size_t array
     discard_bits_for_parity_check(bob_bit_array, array_length, bob_priv_amp, syndrome_power);
 
     #if DEBUG_WINNOW
-    dbg_print_array(alice_bit_array, array_length, block_len);
-    dbg_print_array(bob_bit_array, array_length, block_len);
+    print_array(alice_bit_array, array_length, block_len);
+    print_array(bob_bit_array, array_length, block_len);
     std::cout << endl;
-    dbg_print_array(alice_priv_amp, priv_amp_arr_len, block_len-1);
-    dbg_print_array(bob_priv_amp, priv_amp_arr_len, block_len-1);
+    print_array(alice_priv_amp, priv_amp_arr_len, block_len-1);
+    print_array(bob_priv_amp, priv_amp_arr_len, block_len-1);
     std::cout << endl;
     #endif
 
@@ -339,8 +366,8 @@ size_t winnow(int* const alice_bit_array, int* const bob_bit_array, size_t array
     
 
     #if DEBUG_WINNOW
-    dbg_print_array(alice_priv_amp, priv_amp_arr_len, block_len);
-    dbg_print_array(bob_priv_amp, priv_amp_arr_len, block_len);
+    print_array(alice_priv_amp, priv_amp_arr_len, block_len);
+    print_array(bob_priv_amp, priv_amp_arr_len, block_len);
     std::cout << endl;
     #endif 
 
@@ -392,8 +419,8 @@ size_t winnow(int* const alice_bit_array, int* const bob_bit_array, size_t array
         }
     }
     #if DEBUG_WINNOW
-    dbg_print_array(output_alice_bit_array, out_arr_len, block_len);
-    dbg_print_array(output_bob_bit_array, out_arr_len, block_len);
+    print_array(output_alice_bit_array, out_arr_len, block_len);
+    print_array(output_bob_bit_array, out_arr_len, block_len);
     std::cout << "______________DEBUG_WINNOW______________\n" << endl;
     #endif
 
@@ -404,8 +431,10 @@ size_t winnow(int* const alice_bit_array, int* const bob_bit_array, size_t array
 }
 
 // Runs the Winnow algorithm sequentially several times with different block sizes
-size_t run_trial(const int* const alice_bit_array, const int* const bob_bit_array, size_t array_length, const vector<int>& trial_combination, bool shuffle_bits, int* const output_alice_bit_array, int* const output_bob_bit_array){
-    int seed = 0;
+size_t run_trial(const int* const alice_bit_array, const int* const bob_bit_array, size_t array_length, 
+    const vector<int>& trial_combination, bool shuffle_bits, int* const output_alice_bit_array, int* const output_bob_bit_array)
+{
+    size_t seed = SIMULATION_SEED;
     size_t block_length = 0;
     size_t discarded_bits_number = 0;
     size_t trimmed_array_length = array_length;
@@ -440,7 +469,8 @@ size_t run_trial(const int* const alice_bit_array, const int* const bob_bit_arra
 
 // Runs the experiment with the given TRIAL_NUMBER- times combination and calculates 
 // the final average key error rate and the final average key fraction
-test_result run_test(const test_combination combination)  {
+test_result run_test(const test_combination combination, size_t seed)  
+{
     size_t errors_number = 0;
     size_t output_array_length = 0;
     double mean_final_error = 0;
@@ -451,14 +481,13 @@ test_result run_test(const test_combination combination)  {
     int* output_bob_bit_array = new int[SIFTED_KEY_LENGTH] {};
     int* error_positions_array = new int[SIFTED_KEY_LENGTH];
 
-    // Pseudo-random number generators
-    mt19937 prng_1(time(nullptr));
-    mt19937 prng_2(time(nullptr) + 666);
+    // Pseudo-random number generator
+    mt19937 prng(seed);
 
-    for (size_t i = 0; i < TRIAL_NUMBER; i++)
+    for (size_t i = 0; i < TRIALS_NUMBER; i++)
     {
-        generate_random_bit_array(prng_1, SIFTED_KEY_LENGTH, alice_bit_array);
-        introduce_errors(prng_2, alice_bit_array, SIFTED_KEY_LENGTH, combination.error_probability, bob_bit_array);
+        generate_random_bit_array(prng, SIFTED_KEY_LENGTH, alice_bit_array);
+        introduce_errors(prng, alice_bit_array, SIFTED_KEY_LENGTH, combination.error_probability, bob_bit_array);
         output_array_length = run_trial(alice_bit_array, bob_bit_array, SIFTED_KEY_LENGTH, combination.trial_combination, SHUFFLE_MODE, output_alice_bit_array, output_bob_bit_array);
         
         calculate_error_positions(output_alice_bit_array, output_bob_bit_array, output_array_length, error_positions_array);
@@ -466,8 +495,8 @@ test_result run_test(const test_combination combination)  {
         mean_final_error += static_cast<double>(errors_number) / static_cast<double>(output_array_length);
         mean_remaining_fraction += static_cast<double>(output_array_length) / static_cast<double>(SIFTED_KEY_LENGTH);
     }
-    mean_final_error = mean_final_error / static_cast<double>(TRIAL_NUMBER);
-    mean_remaining_fraction = mean_remaining_fraction / static_cast<double>(TRIAL_NUMBER);
+    mean_final_error = mean_final_error / static_cast<double>(TRIALS_NUMBER);
+    mean_remaining_fraction = mean_remaining_fraction / static_cast<double>(TRIALS_NUMBER);
 
     delete[] alice_bit_array;
     delete[] bob_bit_array;
@@ -485,7 +514,8 @@ test_result run_test(const test_combination combination)  {
 }
 
 // Distributes all combinations of the experiment evenly across the CPU threads and runs it
-vector<test_result> run_all_experiments(const vector<test_combination>& combinations) {
+vector<test_result> run_simulation(const vector<test_combination>& combinations) 
+{
     vector<test_result> results(combinations.size());
     BS::thread_pool pool(THREADS_NUMBER);
 
@@ -505,16 +535,19 @@ vector<test_result> run_all_experiments(const vector<test_combination>& combinat
       option::MaxProgress{combinations.size()}
     };
 
-    size_t iteration = 1;
+    size_t iteration = 0;
+    mt19937 prng(SIMULATION_SEED);
+    uniform_int_distribution<size_t> distribution(0, numeric_limits<size_t>::max());
     pool.detach_loop<size_t>(0, combinations.size(),
-        [&combinations, &results, &bar, &iteration](size_t i)
+        [&combinations, &results, &prng, &distribution, &bar, &iteration](size_t i)
         {
-            results[i] = run_test(combinations[i]);
             bar.set_option(option::PostfixText{
                 to_string(iteration) + "/" + to_string(combinations.size())
                 });
             bar.tick();
             iteration++;
+
+            results[i] = run_test(combinations[i], distribution(prng));
         });
     pool.wait();
     show_console_cursor(true);
@@ -522,20 +555,19 @@ vector<test_result> run_all_experiments(const vector<test_combination>& combinat
     return results;
 }
 
-int main() {
+int main() 
+{
     #if not DEBUG_MAIN
-    srand(time(nullptr));
-
     vector<test_combination> combinations = prepare_combinations(COMBINATION_ELEMENTS, QBER);
-    vector<test_result> result = run_all_experiments(combinations);
-    std::cout << "All tests were completed successfully! \nThe results will be written to the directory: " << RESULT_FILE_PATH << endl;
+    vector<test_result> result = run_simulation(combinations);
+    cout << "All tests were completed successfully! \nThe results will be written to the directory: " << RESULT_FILE_PATH << endl;
     if (write_file(result, RESULT_FILE_PATH))
     {
-        printf("The results were written to the file successfully!");
+        cout << "The results were written to the file successfully!" << endl;
     }
     else 
     {
-        printf("An error occurred while writing to the file");
+        cerr << "An error occurred while writing to the file" << endl;
     }
 
     #else
@@ -560,18 +592,23 @@ int main() {
     b_array[26] = 0;
 
     std::cout << "______________DEBUG_MAIN______________" << endl;
-    dbg_print_array(a_array, 32, 8);
-    dbg_print_array(b_array, 32, 8);
+    print_array(a_array, 32, 16);
+    print_array(b_array, 32, 16);
     std::cout << "_ _ _ _ _ _ _ DEBUG_MAIN _ _ _ _ _ _ _\n" << endl;
 
     int* a_out_array = new int[32];
     int* b_out_array = new int[32];
-    size_t out_len = winnow(a_array, b_array, 32, INITIAL_SYNDROME_POWER, a_out_array, b_out_array);
+    size_t out_len = winnow(a_array, b_array, 32, INITIAL_SYNDROME_POWER + 1, a_out_array, b_out_array);
 
     std::cout << "_ _ _ _ _ _ _ DEBUG_MAIN _ _ _ _ _ _ _" << endl;
-    dbg_print_array(a_out_array, out_len, 100);
-    dbg_print_array(b_out_array, out_len, 100);
+    print_array(a_out_array, out_len, 100);
+    print_array(b_out_array, out_len, 100);
     std::cout << "______________DEBUG_MAIN______________" << endl;
+
+    delete[] a_array;
+    delete[] b_array;
+    delete[] a_out_array;
+    delete[] b_out_array;
     #endif
      return 0;
 }
