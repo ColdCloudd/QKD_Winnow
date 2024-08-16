@@ -1,12 +1,12 @@
 ﻿#include <vector>
-#include <string>
+#include <cstring>
 #include <random>
 #include <chrono>
 #include <numeric>
 #include <iostream>
 #include <fstream>
 
-#include "BS_thread_pool.hpp"
+#include <BS_thread_pool.hpp>
 #include <indicators/progress_bar.hpp>
 #include <indicators/cursor_control.hpp>
 
@@ -37,10 +37,11 @@ const size_t SIFTED_KEY_LENGTH = 10240;
 const size_t INITIAL_SYNDROME_POWER = 3;
 
 // Average error rate in the key
-const vector<double> QBER = { 0.01, 0.03, 0.05, 0.06, 0.08, 0.1, 0.12, 0.15 };
+// const vector<double> QBER = { 0.01, 0.03, 0.05, 0.06, 0.08, 0.1, 0.12, 0.15 };
+const vector<double> QBER = {0.01};
 
 // Folder path for saving ".csv" files with the results of the experiment 
-const string RESULT_FILE_PATH = "C:\\Users\\AGENT\\Desktop\\WINNOW\\QKD_Winnow_CPP\\results\\";
+const string RESULT_FILE_PATH = "../results/";
 
 // The numbers in the first vector determine the number of Winnow runs with a block length of 2^3, 
 // the numbers in the second vector determine the number of runs with a block length of 2^4, and so on.
@@ -94,11 +95,8 @@ string get_trial_combination_string(const vector<int>& combination)
         {
             comb_str += ", ";
         }
-        else
-        {
-            comb_str += ")";
-        }
     }
+    comb_str += ")";
     return comb_str;
 }
 
@@ -133,9 +131,9 @@ vector<vector<int>> cartesian_product(vector<vector<int>> trial_elements)
     auto product = [](long long a, vector<int>& b) { return a * b.size(); };
     const long long combination_number = accumulate(trial_elements.begin(), trial_elements.end(), 1LL, product);
     vector<vector<int>> result(combination_number, vector<int>(trial_elements.size()));
-    for (long long n = 0; n < combination_number; ++n) {
+    for (size_t n = 0; n < combination_number; ++n) {
         lldiv_t q{ n, 0 };
-        for (long long i = trial_elements.size() - 1; 0 <= i; --i) {
+        for (size_t i = trial_elements.size() - 1; 0 <= i; --i) {
             q = div(q.quot, trial_elements[i].size());
             result[n][i] = trial_elements[i][q.rem];
         }
@@ -273,7 +271,7 @@ int** calculate_Hamming_hash_matrix(size_t syndrome_power)
 void calculate_syndrome(const int* const bit_block, const size_t& syndrome_power, const size_t& block_length, 
     const int* const* hash_matrix, int* const output_syndrome) 
 {
-    int xor_sum;
+    int xor_sum = 0;
     for (size_t i = 0; i < syndrome_power; i++)
     {
         xor_sum = 0;
