@@ -15,8 +15,6 @@
 #include <indicators/progress_bar.hpp>
 #include <indicators/cursor_control.hpp>
 
-using namespace std;
-//using namespace chrono;
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 
@@ -56,7 +54,7 @@ namespace fs = std::filesystem;
 struct test_result
 {
     int test_number{};
-    vector<int> trial_combination{};
+    std::vector<int> trial_combination{};
     double error_probability{};
     double mean_final_error{};
     double mean_remaining_fraction{};
@@ -65,7 +63,7 @@ struct test_result
 struct test_combination
 {
     int test_number{};
-    vector<int> trial_combination{};
+    std::vector<int> trial_combination{};
     float error_probability{};
 };
 
@@ -78,8 +76,8 @@ struct config_data
     bool SHUFFLE_MODE{};
     size_t SIFTED_KEY_LENGTH{};
     size_t INITIAL_SYNDROME_POWER{};
-    vector<double> QBER{};
-    vector<vector<int>> COMBINATION_ELEMENTS{};
+    std::vector<double> QBER{};
+    std::vector<std::vector<int>> COMBINATION_ELEMENTS{};
     bool TRACE_WINNOW{};
 };
 
@@ -89,20 +87,20 @@ config_data get_config_data(fs::path config_path)
 {
     if (!fs::exists(config_path))
     {
-        throw runtime_error("Configuration file not found: " + config_path.string());
+        throw std::runtime_error("Configuration file not found: " + config_path.string());
     }
 
-    ifstream config_file(config_path);
+    std::ifstream config_file(config_path);
     if (!config_file.is_open())
     {
-        throw runtime_error("Failed to open configuration file: " + config_path.string());
+        throw std::runtime_error("Failed to open configuration file: " + config_path.string());
     }
 
     json config = json::parse(config_file);
     config_file.close();
     if (config.empty())
     {
-        throw runtime_error("Configuration file is empty: " + config_path.string());
+        throw std::runtime_error("Configuration file is empty: " + config_path.string());
     }
     
     try
@@ -115,8 +113,8 @@ config_data get_config_data(fs::path config_path)
         cfg.SHUFFLE_MODE = config["shuffle_mode"].template get<bool>();
         cfg.SIFTED_KEY_LENGTH = config["sifted_key_length"].template get<size_t>();
         cfg.INITIAL_SYNDROME_POWER = config["initial_syndrome_power"].template get<size_t>();
-        cfg.QBER = config["qber"].template get<vector<double>>();
-        cfg.COMBINATION_ELEMENTS = config["combination_elements"].template get<vector<vector<int>>>();
+        cfg.QBER = config["qber"].template get<std::vector<double>>();
+        cfg.COMBINATION_ELEMENTS = config["combination_elements"].template get<std::vector<std::vector<int>>>();
         cfg.TRACE_WINNOW = config["trace_winnow"].template get<bool>();
         return cfg;
     }
@@ -141,12 +139,12 @@ void print_array(const int *const bit_array, size_t array_length, size_t block_l
 }
 
 // Returns the combination as a python tuple in string format
-string get_trial_combination_string(const vector<int> &combination)
+std::string get_trial_combination_string(const std::vector<int> &combination)
 {
-    string comb_str = "(";
+    std::string comb_str = "(";
     for (size_t i = 0; i < combination.size(); i++)
     {
-        comb_str += to_string(combination[i]);
+        comb_str += std::to_string(combination[i]);
         if (i < combination.size() - 1)
         {
             comb_str += ", ";
@@ -157,15 +155,15 @@ string get_trial_combination_string(const vector<int> &combination)
 }
 
 // Records the results of the simulation in a ".csv" format file
-void write_file(const vector<test_result> &data, fs::path directory)
+void write_file(const std::vector<test_result> &data, fs::path directory)
 {
     try
     {
-        string filename = "winnow(trial_num=" + to_string(CFG.TRIALS_NUMBER) + ",shuff_mode=" + to_string(CFG.SHUFFLE_MODE) + ",seed=" + to_string(CFG.SIMULATION_SEED) + ").csv";
+        std::string filename = "winnow(trial_num=" + std::to_string(CFG.TRIALS_NUMBER) + ",shuff_mode=" + std::to_string(CFG.SHUFFLE_MODE) + ",seed=" + std::to_string(CFG.SIMULATION_SEED) + ").csv";
         fs::path result_file_path = directory / filename;
 
-        fstream fout;
-        fout.open(result_file_path, ios::out | ios::trunc);
+        std::fstream fout;
+        fout.open(result_file_path, std::ios::out | std::ios::trunc);
         fout << "№;TRIAL_COMBINATION;INITIAL_QBER;MEAN_FINAL_QBER;MEAN_FINAL_FRACTION\n";
         for (size_t i = 0; i < data.size(); i++)
         {
@@ -182,18 +180,18 @@ void write_file(const vector<test_result> &data, fs::path directory)
 }
 
 // Computes combinations of runs, based on given elements as the Cartesian product of vectors
-vector<vector<int>> cartesian_product(vector<vector<int>> trial_elements)
+std::vector<std::vector<int>> cartesian_product(std::vector<std::vector<int>> trial_elements)
 {
-    auto product = [](long long a, vector<int> &b)
+    auto product = [](long long a, std::vector<int> &b)
     { return a * b.size(); };
     const long long combination_number = accumulate(trial_elements.begin(), trial_elements.end(), 1LL, product);
-    vector<vector<int>> result(combination_number, vector<int>(trial_elements.size()));
+    std::vector<std::vector<int>> result(combination_number, std::vector<int>(trial_elements.size()));
     for (long long n = 0; n < combination_number; ++n)
     {
-        lldiv_t q{n, 0};
+        std::lldiv_t q{n, 0};
         for (long long i = trial_elements.size() - 1; 0 <= i; --i)
         {
-            q = div(q.quot, trial_elements[i].size());
+            q = std::div(q.quot, trial_elements[i].size());
             result[n][i] = trial_elements[i][q.rem];
         }
     }
@@ -202,10 +200,10 @@ vector<vector<int>> cartesian_product(vector<vector<int>> trial_elements)
 
 // Generates combinations of runs consisting of the run number, combinations that determine
 // the number of Winnow runs with a given block size, and the QBER probability
-vector<test_combination> prepare_combinations(vector<vector<int>> trial_elements, vector<double> bit_error_rates)
+std::vector<test_combination> prepare_combinations(std::vector<std::vector<int>> trial_elements, std::vector<double> bit_error_rates)
 {
-    vector<vector<int>> trial_combinations = cartesian_product(trial_elements);
-    vector<test_combination> combinations(trial_combinations.size() * bit_error_rates.size());
+    std::vector<std::vector<int>> trial_combinations = cartesian_product(trial_elements);
+    std::vector<test_combination> combinations(trial_combinations.size() * bit_error_rates.size());
     size_t test_number = 0;
     for (size_t i = 0; i < trial_combinations.size(); i++)
     {
@@ -221,9 +219,9 @@ vector<test_combination> prepare_combinations(vector<vector<int>> trial_elements
 }
 
 // Generates Alice's key
-void generate_random_bit_array(mt19937 &prng, size_t length, int *const output_random_bit_array)
+void generate_random_bit_array(std::mt19937 &prng, size_t length, int *const output_random_bit_array)
 {
-    uniform_int_distribution<int> distribution(0, 1);
+    std::uniform_int_distribution<int> distribution(0, 1);
 
     // Generate random bits and fill the vector
     for (int i = 0; i < length; ++i)
@@ -233,13 +231,13 @@ void generate_random_bit_array(mt19937 &prng, size_t length, int *const output_r
 }
 
 // Generates Bob's key by making errors in Alice's key with a given QBER probability (Uniform distribution)
-void introduce_errors(mt19937 &prng, const int *const bit_array, size_t array_length, float error_probability,
+void introduce_errors(std::mt19937 &prng, const int *const bit_array, size_t array_length, float error_probability,
                       int *const output_bit_array_with_errors)
 {
     size_t num_errors = static_cast<size_t>(array_length * error_probability);
     if (num_errors == 0)
     {
-        copy(bit_array, bit_array + array_length, output_bit_array_with_errors);
+        std::copy(bit_array, bit_array + array_length, output_bit_array_with_errors);
     }
     else
     {
@@ -250,7 +248,7 @@ void introduce_errors(mt19937 &prng, const int *const bit_array, size_t array_le
         }
 
         shuffle(error_positions, error_positions + array_length, prng);
-        copy(bit_array, bit_array + array_length, output_bit_array_with_errors);
+        std::copy(bit_array, bit_array + array_length, output_bit_array_with_errors);
 
         for (size_t i = 0; i < num_errors; ++i)
         {
@@ -269,27 +267,27 @@ void discard_bits_for_parity_check(const int *const source_bit_array, const size
     size_t destination_block_size = source_block_size - 1;
     for (size_t i = 0, j = 0; i < source_array_length; i += source_block_size, j += destination_block_size)
     {
-        copy(source_bit_array + i + 1, source_bit_array + i + source_block_size, destination_bit_array + j);
+        std::copy(source_bit_array + i + 1, source_bit_array + i + source_block_size, destination_bit_array + j);
     }
 }
 
 // Discards bits at positions 2^n, where n=(0,1, ... syndrome_power - 1) in the block for privacy amplification
 void discard_bits_for_syndrome(const int *const source_bit_block, int *const destination_bit_block,
-                               const vector<int> &discarded_bit_positions)
+                               const std::vector<int> &discarded_bit_positions)
 {
     int destination_current_start = 0;
     // Copying bits that are between the positions described in discarded_bit_positions
     for (size_t i = 1; i < discarded_bit_positions.size() - 1; i++)
     {
         destination_current_start += discarded_bit_positions[i] - discarded_bit_positions[i - 1] - 1;
-        copy(source_bit_block + discarded_bit_positions[i] + 1, source_bit_block + discarded_bit_positions[i + 1], destination_bit_block + destination_current_start);
+        std::copy(source_bit_block + discarded_bit_positions[i] + 1, source_bit_block + discarded_bit_positions[i + 1], destination_bit_block + destination_current_start);
     }
 }
 
 // Calculates the parity bit for a block
 bool calculate_block_parity(const int *const bit_block, const size_t &block_length)
 {
-    return accumulate(bit_block, bit_block + block_length, 0) % 2 == 0;
+    return std::accumulate(bit_block, bit_block + block_length, 0) % 2 == 0;
 }
 
 // Calculates an array that consists of 0 and 1, where 1 denotes that Alice's and Bob's bits are different
@@ -305,10 +303,10 @@ void calculate_error_positions(const int *const alice_bit_array, const int *cons
 // Shuffles Alice's and Bob's bit arrays by seed
 void shuffle_array_bits(int *const alice_bit_array, int *const bob_bit_array, size_t array_length, int seed)
 {
-    mt19937 rng(seed);
-    shuffle(alice_bit_array, alice_bit_array + array_length, rng);
+    std::mt19937 rng(seed);
+    std::shuffle(alice_bit_array, alice_bit_array + array_length, rng);
     rng.seed(seed);
-    shuffle(bob_bit_array, bob_bit_array + array_length, rng);
+    std::shuffle(bob_bit_array, bob_bit_array + array_length, rng);
 }
 
 // Computes a matrix based on the Hamming hash function
@@ -369,7 +367,7 @@ size_t winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array
     size_t blocks_cnt = array_length / block_len;
     int **hash_mat = calculate_Hamming_hash_matrix(syndrome_power);
 
-    vector<int> diff_par_blocks; // Contains the numbers of blocks whose parity bits did not match for Alice and Bob
+    std::vector<int> diff_par_blocks; // Contains the numbers of blocks whose parity bits did not match for Alice and Bob
     diff_par_blocks.reserve(blocks_cnt);
     for (size_t i = 0; i < array_length; i += block_len)
     {
@@ -434,7 +432,7 @@ size_t winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array
 
     // Contains bounds that specify valid bits [from 2^0, 2^1, ... , 2^(syndrome_power-1)],
     // and the last element (2^syndrome_power) which is the right boundary
-    vector<int> disc_bit_pos(syndrome_power + 1);
+    std::vector<int> disc_bit_pos(syndrome_power + 1);
     for (size_t i = 0; i < disc_bit_pos.size(); i++)
     {
         disc_bit_pos[i] = (int)(pow(2, i) - 1);
@@ -456,22 +454,22 @@ size_t winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array
         }
         else if (diff_par_len == 0) // No errors in arrays -> copy the array completely
         {
-            copy(alice_priv_amp, alice_priv_amp + priv_amp_arr_len, output_alice_bit_array);
-            copy(bob_priv_amp, bob_priv_amp + priv_amp_arr_len, output_bob_bit_array);
+            std::copy(alice_priv_amp, alice_priv_amp + priv_amp_arr_len, output_alice_bit_array);
+            std::copy(bob_priv_amp, bob_priv_amp + priv_amp_arr_len, output_bob_bit_array);
             i += priv_amp_arr_len;
         }
         else if (j >= diff_par_len) // Remaining blocks with no errors are copied
         {
             copy_delta = priv_amp_arr_len - i;
-            copy(alice_priv_amp + i, alice_priv_amp + i + copy_delta, output_alice_bit_array + dest_cur_pos);
-            copy(bob_priv_amp + i, bob_priv_amp + i + copy_delta, output_bob_bit_array + dest_cur_pos);
+            std::copy(alice_priv_amp + i, alice_priv_amp + i + copy_delta, output_alice_bit_array + dest_cur_pos);
+            std::copy(bob_priv_amp + i, bob_priv_amp + i + copy_delta, output_bob_bit_array + dest_cur_pos);
             i += copy_delta;
         }
         else
         {
             copy_delta = diff_par_blocks[j] * block_len - i; // Blocks between two erroneous blocks are copied
-            copy(alice_priv_amp + i, alice_priv_amp + i + copy_delta, output_alice_bit_array + dest_cur_pos);
-            copy(bob_priv_amp + i, bob_priv_amp + i + copy_delta, output_bob_bit_array + dest_cur_pos);
+            std::copy(alice_priv_amp + i, alice_priv_amp + i + copy_delta, output_alice_bit_array + dest_cur_pos);
+            std::copy(bob_priv_amp + i, bob_priv_amp + i + copy_delta, output_bob_bit_array + dest_cur_pos);
             dest_cur_pos += copy_delta;
             i += copy_delta;
         }
@@ -492,7 +490,7 @@ size_t winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array
 
 // Runs the Winnow algorithm sequentially several times with different block sizes
 size_t run_trial(const int *const alice_bit_array, const int *const bob_bit_array, size_t array_length,
-                 const vector<int> &trial_combination, bool shuffle_bits, int *const output_alice_bit_array, int *const output_bob_bit_array)
+                 const std::vector<int> &trial_combination, bool shuffle_bits, int *const output_alice_bit_array, int *const output_bob_bit_array)
 {
     size_t seed = CFG.SIMULATION_SEED;
     size_t block_length = 0;
@@ -543,7 +541,7 @@ test_result run_test(const test_combination combination, size_t seed)
     int *error_positions_array = new int[CFG.SIFTED_KEY_LENGTH];
 
     // Pseudo-random number generator
-    mt19937 prng(seed);
+    std::mt19937 prng(seed);
 
     for (size_t i = 0; i < CFG.TRIALS_NUMBER; i++)
     {
@@ -552,7 +550,7 @@ test_result run_test(const test_combination combination, size_t seed)
         output_array_length = run_trial(alice_bit_array, bob_bit_array, CFG.SIFTED_KEY_LENGTH, combination.trial_combination, CFG.SHUFFLE_MODE, output_alice_bit_array, output_bob_bit_array);
 
         calculate_error_positions(output_alice_bit_array, output_bob_bit_array, output_array_length, error_positions_array);
-        errors_number = accumulate(error_positions_array, error_positions_array + output_array_length, 0);
+        errors_number = std::accumulate(error_positions_array, error_positions_array + output_array_length, 0);
         mean_final_error += static_cast<double>(errors_number) / static_cast<double>(output_array_length);
         mean_remaining_fraction += static_cast<double>(output_array_length) / static_cast<double>(CFG.SIFTED_KEY_LENGTH);
     }
@@ -575,11 +573,11 @@ test_result run_test(const test_combination combination, size_t seed)
 }
 
 // Distributes all combinations of the experiment evenly across the CPU threads and runs it
-vector<test_result> run_simulation(const vector<test_combination> &combinations)
+std::vector<test_result> run_simulation(const std::vector<test_combination> &combinations)
 {
     using namespace indicators;
 
-    vector<test_result> results(combinations.size());
+    std::vector<test_result> results(combinations.size());
     BS::thread_pool pool(CFG.THREADS_NUMBER);
 
     indicators::show_console_cursor(false);
@@ -598,13 +596,13 @@ vector<test_result> run_simulation(const vector<test_combination> &combinations)
         option::MaxProgress{combinations.size()}};
 
     size_t iteration = 0;
-    mt19937 prng(CFG.SIMULATION_SEED);
-    uniform_int_distribution<size_t> distribution(0, numeric_limits<size_t>::max());
+    std::mt19937 prng(CFG.SIMULATION_SEED);
+    std::uniform_int_distribution<size_t> distribution(0, std::numeric_limits<size_t>::max());
     pool.detach_loop<size_t>(0, combinations.size(),
                              [&combinations, &results, &prng, &distribution, &bar, &iteration](size_t i)
                              {
                                  bar.set_option(option::PostfixText{
-                                     to_string(iteration) + "/" + to_string(combinations.size())});
+                                     std::to_string(iteration) + "/" + std::to_string(combinations.size())});
                                  bar.tick();
                                  iteration++;
 
@@ -623,8 +621,8 @@ int main()
         fs::path config_path =  fs::path(SOURCE_DIR) / "config.json";
         CFG = get_config_data(config_path);
 
-        vector<test_combination> combinations = prepare_combinations(CFG.COMBINATION_ELEMENTS, CFG.QBER);
-        vector<test_result> result = run_simulation(combinations);
+        std::vector<test_combination> combinations = prepare_combinations(CFG.COMBINATION_ELEMENTS, CFG.QBER);
+        std::vector<test_result> result = run_simulation(combinations);
 
         fs::path result_dir_path = fs::path(SOURCE_DIR) / "results";
         if (!fs::exists(result_dir_path))

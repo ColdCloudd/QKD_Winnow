@@ -39,5 +39,5 @@ CPMAddPackage(
         "JSON_BuildTests OFF")
 
 add_definitions(-DSOURCE_DIR="${CMAKE_SOURCE_DIR}")
-add_executable(QKD_Winnow_CPP src/main.cpp)
+add_executable(QKD_Winnow_CPP src/QKD_Winnow.cpp)
 target_link_libraries(QKD_Winnow_CPP BS_thread_pool fmt indicators nlohmann_json)
