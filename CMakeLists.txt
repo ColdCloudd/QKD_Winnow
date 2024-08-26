@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.30.0)
-project(QKD_Winnow_CPP VERSION 0.1.0 LANGUAGES C CXX)
+project(QKD_Winnow VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,5 +39,35 @@ CPMAddPackage(
         "JSON_BuildTests OFF")
 
 add_definitions(-DSOURCE_DIR="${CMAKE_SOURCE_DIR}")
-add_executable(QKD_Winnow_CPP src/QKD_Winnow.cpp)
-target_link_libraries(QKD_Winnow_CPP BS_thread_pool fmt indicators nlohmann_json)
+add_executable(QKD_Winnow 
+    src/main.cpp
+    src/config.hpp
+    src/config.cpp
+    src/utils.hpp
+    src/utils.cpp
+    src/simulation.hpp
+    src/simulation.cpp
+    src/bit_array_operations.hpp
+    src/bit_array_operations.cpp
+    src/winnow_algorithm.hpp
+    src/winnow_algorithm.cpp
+    )
+target_link_libraries(QKD_Winnow BS_thread_pool fmt indicators nlohmann_json)
+
+option(BUILD_EXAMPLES "Build examples" ON)
+
+if(BUILD_EXAMPLES)
+    add_executable(QKD_Winnow_Example 
+    example/winnow_example.cpp
+    src/config.hpp
+    src/config.cpp
+    src/utils.hpp
+    src/utils.cpp
+    src/bit_array_operations.hpp
+    src/bit_array_operations.cpp
+    src/winnow_algorithm.hpp
+    src/winnow_algorithm.cpp
+    )
+    target_include_directories(QKD_Winnow_Example PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_link_libraries(QKD_Winnow_Example fmt nlohmann_json)
+endif()
