@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.30.0)
 project(QKD_Winnow VERSION 0.1.0 LANGUAGES C CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -12,7 +12,6 @@ if(NOT(EXISTS ${CPM_DOWNLOAD_LOCATION}))
     file(DOWNLOAD https://github.com/cpm-cmake/CPM.cmake/releases/latest/download/CPM.cmake ${CPM_DOWNLOAD_LOCATION})
 endif()
 include(${CPM_DOWNLOAD_LOCATION})
-
 
 CPMAddPackage(
     NAME BS_thread_pool

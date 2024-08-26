@@ -21,7 +21,6 @@ int main()
         }
         fmt::print(fg(fmt::color::green),"All tests were completed successfully! \nThe results will be written to the directory: {}\n", result_dir_path.string());
         write_file(result, result_dir_path);
-        fmt::print(fg(fmt::color::green),"The results were written to the file successfully!");
     }
     catch(const std::exception& e)
     {
