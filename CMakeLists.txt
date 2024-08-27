@@ -51,6 +51,7 @@ add_executable(QKD_Winnow
     src/winnow_algorithm.hpp
     src/winnow_algorithm.cpp
     )
+target_include_directories(QKD_Winnow PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(QKD_Winnow BS_thread_pool fmt indicators nlohmann_json)
 
 option(BUILD_EXAMPLES "Build examples" ON)

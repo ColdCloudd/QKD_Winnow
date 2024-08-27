@@ -29,7 +29,7 @@ struct test_result
 };
 
 std::vector<std::vector<size_t>> cartesian_product(std::vector<std::vector<size_t>> trial_elements);
-std::vector<test_combination> prepare_combinations(std::vector<std::vector<size_t>> trial_elements, std::vector<double> bit_error_rates);
+std::vector<test_combination> prepare_combinations(const std::vector<std::vector<size_t>>& trial_combinations, std::vector<double> bit_error_rates);
 size_t run_trial(const int *const alice_bit_array, const int *const bob_bit_array, size_t array_length,
                  const std::vector<size_t> &trial_combination, bool shuffle_bits, int *const output_alice_bit_array, int *const output_bob_bit_array);
 test_result run_test(const test_combination combination, size_t seed);

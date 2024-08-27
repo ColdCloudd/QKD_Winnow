@@ -38,6 +38,14 @@ struct config_data
     // the numbers in the second vector determine the number of runs with a block length of 2^4, and so on.
     // This is necessary to compose all combinations of interest by calculating the Cartesian product.
     std::vector<std::vector<size_t>> COMBINATION_ELEMENTS{};
+
+    // Using combinations defined in the configuration, instead of generating them from the COMBINATION_ELEMENTS set
+    bool USE_SPECIFIED_COMBINATIONS{};
+
+    // Combinations that determine the number of runs with a given block size, starting from 2^3
+    std::vector<std::vector<size_t>> COMBINATIONS{};
+
+    // Flag for controlling the output of debugging information during the execution of winnow algorithm
     bool TRACE_WINNOW{};
 };
 

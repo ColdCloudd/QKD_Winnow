@@ -21,9 +21,8 @@ std::vector<std::vector<size_t>> cartesian_product(std::vector<std::vector<size_
 
 // Generates combinations of runs consisting of the run number, combinations that determine
 // the number of Winnow runs with a given block size, and the QBER probability
-std::vector<test_combination> prepare_combinations(std::vector<std::vector<size_t>> trial_elements, std::vector<double> bit_error_rates)
+std::vector<test_combination> prepare_combinations(const std::vector<std::vector<size_t>>& trial_combinations, std::vector<double> bit_error_rates)
 {
-    std::vector<std::vector<size_t>> trial_combinations = cartesian_product(trial_elements);
     std::vector<test_combination> combinations(trial_combinations.size() * bit_error_rates.size());
     size_t test_number = 0;
     for (size_t i = 0; i < trial_combinations.size(); i++)

@@ -10,8 +10,17 @@ int main()
     {
         fs::path config_path =  fs::path(SOURCE_DIR) / "config.json";
         CFG = get_config_data(config_path);
-
-        std::vector<test_combination> combinations = prepare_combinations(CFG.COMBINATION_ELEMENTS, CFG.QBER);
+        
+        std::vector<std::vector<size_t>> trial_combinations {};
+        if (CFG.USE_SPECIFIED_COMBINATIONS)
+        {
+            trial_combinations = CFG.COMBINATIONS;
+        }
+        else
+        {
+            trial_combinations = cartesian_product(CFG.COMBINATION_ELEMENTS);
+        }
+        std::vector<test_combination> combinations = prepare_combinations(trial_combinations, CFG.QBER);
         std::vector<test_result> result = run_simulation(combinations);
 
         fs::path result_dir_path = fs::path(SOURCE_DIR) / "results";

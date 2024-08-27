@@ -67,7 +67,38 @@ config_data get_config_data(fs::path config_path)
             }
         }
 
-        cfg.COMBINATION_ELEMENTS = config["combination_elements"].template get<std::vector<std::vector<size_t>>>();
+        cfg.USE_SPECIFIED_COMBINATIONS = config["use_specified_combinations"].template get<bool>();
+        if (cfg.USE_SPECIFIED_COMBINATIONS)
+        {
+            cfg.COMBINATIONS = config["combinations"].template get<std::vector<std::vector<size_t>>>();
+            if (cfg.COMBINATIONS.empty())
+            {
+                throw std::runtime_error("Vector 'combinations' cannot be empty!");
+            }
+            for (size_t i = 0; i < cfg.COMBINATIONS.size(); i++)
+            {
+                if (cfg.COMBINATIONS[i].empty())
+                {
+                    throw std::runtime_error("Vector 'combinations' cannot be empty!");
+                }
+            }
+        }
+        else
+        {
+            cfg.COMBINATION_ELEMENTS = config["combination_elements"].template get<std::vector<std::vector<size_t>>>();
+            if (cfg.COMBINATION_ELEMENTS.empty())
+            {
+                throw std::runtime_error("Vector 'combination_elements' cannot be empty!");
+            }
+            for (size_t i = 0; i < cfg.COMBINATION_ELEMENTS.size(); i++)
+            {
+                if (cfg.COMBINATION_ELEMENTS[i].empty())
+                {
+                    throw std::runtime_error("Vector 'combination_elements' cannot be empty!");
+                }
+            }
+        }
+        
         cfg.TRACE_WINNOW = config["trace_winnow"].template get<bool>();
         return cfg;
     }
