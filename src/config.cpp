@@ -26,13 +26,13 @@ config_data get_config_data(fs::path config_path)
         cfg.THREADS_NUMBER = config["threads_number"].template get<size_t>();
         if (cfg.THREADS_NUMBER < 1)
         {
-            throw std::runtime_error("Number of threads must be greater than or equal to one!");
+            throw std::runtime_error("Number of threads must be >= 1!!");
         }
 
         cfg.TRIALS_NUMBER = config["trials_number"].template get<size_t>();
         if (cfg.TRIALS_NUMBER < 1)
         {
-            throw std::runtime_error("Number of trials must be greater than or equal to one!");
+            throw std::runtime_error("Number of trials must be >= 1!!");
         }
 
         if (config["use_config_simulation_seed"].template get<bool>())
@@ -61,9 +61,9 @@ config_data get_config_data(fs::path config_path)
         cfg.QBER = config["qber"].template get<std::vector<double>>();
         for (size_t i = 0; i < cfg.QBER.size(); i++)
         {
-            if (cfg.QBER[i] < 0 || cfg.QBER[i] > 1)
+            if (cfg.QBER[i] <= 0. || cfg.QBER[i] >= 1.)
             {
-                throw std::runtime_error("QBER cannot be less than zero or greater than one!");
+                throw std::runtime_error("QBER must be: 0 < QBER < 1!");
             }
         }
 

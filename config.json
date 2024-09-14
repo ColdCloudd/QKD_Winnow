@@ -14,7 +14,7 @@
         [0, 1, 2, 3, 4],
         [0, 1, 2, 3, 4]
     ],
-    "use_specified_combinations": true,
+    "use_specified_combinations": false,
     "combinations": [[1,1,1,1,1], [0,2,2], [4]],
     "trace_winnow": false
 }

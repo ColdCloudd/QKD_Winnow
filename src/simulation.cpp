@@ -185,6 +185,10 @@ void write_file(const std::vector<test_result> &data, fs::path directory)
 {
     try
     {
+        if (!fs::exists(directory))
+        {
+            fs::create_directories(directory);
+        }
         std::string filename = "winnow(trial_num=" + std::to_string(CFG.TRIALS_NUMBER) + ",shuff_mode=" + std::to_string(CFG.SHUFFLE_MODE) + ",seed=" + std::to_string(CFG.SIMULATION_SEED) + ").csv";
         fs::path result_file_path = directory / filename;
 
