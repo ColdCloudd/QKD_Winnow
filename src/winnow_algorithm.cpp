@@ -83,11 +83,11 @@ void correct_error(int *const bit_block, const int *const first_syndrome, const 
 }
 
 winnow_result winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array_length, size_t syndrome_power,
-              int *const output_alice_bit_array, int *const output_bob_bit_array)
+              const int* const* hash_mat, int *const output_alice_bit_array, int *const output_bob_bit_array)
 {
+    
     size_t block_len = static_cast<size_t>(pow(2, syndrome_power));
     size_t blocks_cnt = array_length / block_len;
-    int **hash_mat = calculate_Hamming_hash_matrix(syndrome_power);
 
     std::vector<int> diff_par_blocks; // Contains the numbers of blocks whose parity bits did not match for Alice and Bob
     diff_par_blocks.reserve(blocks_cnt);
@@ -137,11 +137,6 @@ winnow_result winnow(int *const alice_bit_array, int *const bob_bit_array, size_
         correct_error(alice_priv_amp + (diff_par_blocks[i] * block_len), alice_syn, bob_syn, syndrome_power);
     }
 
-    for (size_t i = 0; i < syndrome_power; ++i)
-    {
-        delete[] hash_mat[i];
-    }
-    delete[] hash_mat;
     delete[] alice_syn;
     delete[] bob_syn;
 

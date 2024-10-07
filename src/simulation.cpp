@@ -59,7 +59,7 @@ size_t run_trial(const int *const alice_bit_array, const int *const bob_bit_arra
     for (size_t i = 0; i < trial_combination.size(); i++)
     {
         block_length = static_cast<size_t>(pow(2, syndrome_power));
-
+        int **hash_mat = calculate_Hamming_hash_matrix(syndrome_power);
         for (size_t j = 0; j < trial_combination[i]; j++)
         {
             last_incompl_block_length = result_array_length % block_length; // Before each Winnow run, сalculates the length of the last block
@@ -80,7 +80,7 @@ size_t run_trial(const int *const alice_bit_array, const int *const bob_bit_arra
                 }
             }
             
-            result = winnow(current_alice_bit_array, current_bob_bit_array, result_array_length, syndrome_power, output_alice_bit_array, output_bob_bit_array);
+            result = winnow(current_alice_bit_array, current_bob_bit_array, result_array_length, syndrome_power, hash_mat, output_alice_bit_array, output_bob_bit_array);
             result_array_length = result.result_array_length;
 
             if(padding)
@@ -108,6 +108,12 @@ size_t run_trial(const int *const alice_bit_array, const int *const bob_bit_arra
             memcpy(current_alice_bit_array, output_alice_bit_array, result_array_length * sizeof(int));
             memcpy(current_bob_bit_array, output_bob_bit_array, result_array_length * sizeof(int));
         }
+
+        for (size_t i = 0; i < syndrome_power; ++i)
+        {
+            delete[] hash_mat[i];
+        }
+        delete[] hash_mat;
         syndrome_power++;
     }
     delete[] current_alice_bit_array;

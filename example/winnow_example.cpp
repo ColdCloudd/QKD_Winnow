@@ -32,8 +32,15 @@ int main()
     int *a_out_array = new int[ARR_LEN];
     int *b_out_array = new int[ARR_LEN];
     size_t syndrome_power = 3;
-    winnow_result result = winnow(a_array, b_array, ARR_LEN, syndrome_power, a_out_array, b_out_array);
+    int **hash_mat = calculate_Hamming_hash_matrix(syndrome_power);
 
+    winnow_result result = winnow(a_array, b_array, ARR_LEN, syndrome_power, hash_mat, a_out_array, b_out_array);
+
+    for (size_t i = 0; i < syndrome_power; ++i)
+    {
+        delete[] hash_mat[i];
+    }
+    delete[] hash_mat;
     delete[] a_array;
     delete[] b_array;
     delete[] a_out_array;

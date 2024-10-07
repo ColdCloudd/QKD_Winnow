@@ -28,5 +28,5 @@ void calculate_syndrome(const int *const bit_block, const size_t &syndrome_power
 void correct_error(int *const bit_block, const int *const first_syndrome, const int *const second_syndrome,
                    const size_t &syndrome_power);
 winnow_result winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array_length, size_t syndrome_power,
-              int *const output_alice_bit_array, int *const output_bob_bit_array);                   
+              const int* const* hash_mat, int *const output_alice_bit_array, int *const output_bob_bit_array);                
 
