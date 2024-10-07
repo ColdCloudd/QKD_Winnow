@@ -82,7 +82,7 @@ void correct_error(int *const bit_block, const int *const first_syndrome, const 
     }
 }
 
-size_t winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array_length, size_t syndrome_power,
+winnow_result winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array_length, size_t syndrome_power,
               int *const output_alice_bit_array, int *const output_bob_bit_array)
 {
     size_t block_len = static_cast<size_t>(pow(2, syndrome_power));
@@ -120,9 +120,9 @@ size_t winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array
         fmt::print(fg(fmt::color::blue), "      - Bob's key\n");
 
         print_array(alice_priv_amp, priv_amp_arr_len, block_len - 1);
-        fmt::print(fg(fmt::color::blue), "      - Alice's key after first privacy amplification\n");
+        fmt::print(fg(fmt::color::blue), "      - Alice's key after first privacy maintenance\n");
         print_array(bob_priv_amp, priv_amp_arr_len, block_len - 1);
-        fmt::print(fg(fmt::color::blue), "      - Bob's key after first privacy amplification\n");
+        fmt::print(fg(fmt::color::blue), "      - Bob's key after first privacy maintenance\n");
     }
 
     block_len -= 1;
@@ -148,9 +148,9 @@ size_t winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array
     if(CFG.TRACE_WINNOW)
     {
         print_array(alice_priv_amp, priv_amp_arr_len, block_len);
-        fmt::print(fg(fmt::color::blue), "      - Alice's key after second privacy amplification\n");
+        fmt::print(fg(fmt::color::blue), "      - Alice's key after error correction\n");
         print_array(bob_priv_amp, priv_amp_arr_len, block_len);
-        fmt::print(fg(fmt::color::blue), "      - Bob's key after second privacy amplification\n");
+        fmt::print(fg(fmt::color::blue), "      - Bob's key after error correction\n");
     }
 
     size_t remain_bits_cnt = block_len - syndrome_power; // Number of remaining bits in blocks for which syndromes were calculated
@@ -201,17 +201,24 @@ size_t winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array
         }
     }
 
+    // Used to account for the number of bits to be removed for padding
+    bool last_block_with_error = false; 
+    if(diff_par_len > 0 && (diff_par_blocks.back() == (blocks_cnt - 1)))
+    {
+        last_block_with_error = true;
+    }
+
     if(CFG.TRACE_WINNOW)
     {
         print_array(output_alice_bit_array, out_arr_len, block_len);
-        fmt::print(fg(fmt::color::blue), "      - Alice's key after running winnow\n");
+        fmt::print(fg(fmt::color::blue), "      - Alice's key after second privacy maintenance\n");
         print_array(output_bob_bit_array, out_arr_len, block_len);
-        fmt::print(fg(fmt::color::blue), "      - Bob's key after running winnow\n");
+        fmt::print(fg(fmt::color::blue), "      - Bob's key after second privacy maintenance\n");
         fmt::print(fg(fmt::color::blue), "______________WINNOW_TRACE______________\n");
     }
 
     delete[] alice_priv_amp;
     delete[] bob_priv_amp;
 
-    return out_arr_len;
+    return {out_arr_len, last_block_with_error};
 }

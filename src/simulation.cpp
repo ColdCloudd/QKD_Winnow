@@ -44,36 +44,76 @@ size_t run_trial(const int *const alice_bit_array, const int *const bob_bit_arra
 {
     size_t seed = CFG.SIMULATION_SEED;
     size_t block_length = 0;
-    size_t discarded_bits_number = 0;
-    size_t trimmed_array_length = array_length;
+    size_t last_incompl_block_length = 0;
+    size_t padding_length = 0;
+    size_t num_padding_bits_removed_by_winnow = 0;
+    size_t result_array_length = array_length;
     size_t syndrome_power = CFG.INITIAL_SYNDROME_POWER;
     int *current_alice_bit_array = new int[array_length];
     int *current_bob_bit_array = new int[array_length];
+    bool padding = false;
+    winnow_result result{};
 
     memcpy(current_alice_bit_array, alice_bit_array, array_length * sizeof(int));
     memcpy(current_bob_bit_array, bob_bit_array, array_length * sizeof(int));
     for (size_t i = 0; i < trial_combination.size(); i++)
     {
         block_length = static_cast<size_t>(pow(2, syndrome_power));
+
         for (size_t j = 0; j < trial_combination[i]; j++)
         {
-            discarded_bits_number = trimmed_array_length % block_length; // Before each Winnow run, trims bit arrays to be a multiple of the current block length
-            trimmed_array_length -= discarded_bits_number;
-            trimmed_array_length = winnow(current_alice_bit_array, current_bob_bit_array, trimmed_array_length, syndrome_power, output_alice_bit_array, output_bob_bit_array);
+            last_incompl_block_length = result_array_length % block_length; // Before each Winnow run, сalculates the length of the last block
+            
+            if(last_incompl_block_length > 0)   // Padding 
+            {
+                padding_length = block_length - last_incompl_block_length;
+                if(result_array_length + padding_length >= array_length)    // If padding extends beyond the initial array, the last block is cut off
+                {
+                     result_array_length -= last_incompl_block_length;
+                }
+                else
+                {
+                    std::fill(current_alice_bit_array + result_array_length, current_alice_bit_array + (result_array_length + padding_length), 0);
+                    std::fill(current_bob_bit_array + result_array_length, current_bob_bit_array + (result_array_length + padding_length), 0);
+                    result_array_length += padding_length;
+                    padding = true;
+                }
+            }
+            
+            result = winnow(current_alice_bit_array, current_bob_bit_array, result_array_length, syndrome_power, output_alice_bit_array, output_bob_bit_array);
+            result_array_length = result.result_array_length;
+
+            if(padding)
+            {
+                if(result.last_block_with_error)
+                {
+                    for (size_t k = 0; k < syndrome_power; k++)
+                    {
+                        if (static_cast<size_t>(pow(2, k)) >= last_incompl_block_length)
+                        {
+                            num_padding_bits_removed_by_winnow++;       // Number of padding bits that were removed by the winnow process 
+                        }
+                    } 
+                }
+                result_array_length -= (padding_length - num_padding_bits_removed_by_winnow);
+                num_padding_bits_removed_by_winnow = 0;
+                padding = false;
+            }
+            
             if (shuffle_bits)
             {
-                shuffle_array_bits(output_alice_bit_array, output_bob_bit_array, trimmed_array_length, seed);
+                shuffle_array_bits(output_alice_bit_array, output_bob_bit_array, result_array_length, seed);
                 seed++;
             }
-            memcpy(current_alice_bit_array, output_alice_bit_array, trimmed_array_length * sizeof(int));
-            memcpy(current_bob_bit_array, output_bob_bit_array, trimmed_array_length * sizeof(int));
+            memcpy(current_alice_bit_array, output_alice_bit_array, result_array_length * sizeof(int));
+            memcpy(current_bob_bit_array, output_bob_bit_array, result_array_length * sizeof(int));
         }
         syndrome_power++;
     }
     delete[] current_alice_bit_array;
     delete[] current_bob_bit_array;
 
-    return trimmed_array_length;
+    return result_array_length;
 }
 
 // Runs the experiment with the given TRIAL_NUMBER- times combination and calculates

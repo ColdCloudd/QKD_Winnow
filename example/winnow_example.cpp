@@ -32,7 +32,7 @@ int main()
     int *a_out_array = new int[ARR_LEN];
     int *b_out_array = new int[ARR_LEN];
     size_t syndrome_power = 3;
-    size_t out_len = winnow(a_array, b_array, ARR_LEN, syndrome_power, a_out_array, b_out_array);
+    winnow_result result = winnow(a_array, b_array, ARR_LEN, syndrome_power, a_out_array, b_out_array);
 
     delete[] a_array;
     delete[] b_array;

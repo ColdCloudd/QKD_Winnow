@@ -11,6 +11,12 @@
 #include "config.hpp"
 #include "utils.hpp"
 
+struct winnow_result
+{
+    size_t result_array_length{};
+    bool last_block_with_error{};
+};
+
 void discard_bits_for_parity_check(const int *const source_bit_array, const size_t &source_array_length,
                                    int *const destination_bit_array, const size_t &syndrome_power);
 void discard_bits_for_syndrome(const int *const source_bit_block, int *const destination_bit_block,
@@ -21,6 +27,6 @@ void calculate_syndrome(const int *const bit_block, const size_t &syndrome_power
                         const int *const *hash_matrix, int *const output_syndrome);                               
 void correct_error(int *const bit_block, const int *const first_syndrome, const int *const second_syndrome,
                    const size_t &syndrome_power);
-size_t winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array_length, size_t syndrome_power,
+winnow_result winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array_length, size_t syndrome_power,
               int *const output_alice_bit_array, int *const output_bob_bit_array);                   
 
