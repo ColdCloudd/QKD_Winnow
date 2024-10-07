@@ -13,10 +13,10 @@ void generate_random_bit_array(std::mt19937 &prng, size_t length, int *const out
 }
 
 // Generates Bob's key by making errors in Alice's key with a given QBER probability (Uniform distribution)
-void introduce_errors(std::mt19937 &prng, const int *const bit_array, size_t array_length, float error_probability,
+void introduce_errors(std::mt19937 &prng, const int *const bit_array, size_t array_length, float QBER,
                       int *const output_bit_array_with_errors)
 {
-    size_t num_errors = static_cast<size_t>(array_length * error_probability);
+    size_t num_errors = static_cast<size_t>(array_length * QBER);
     if (num_errors == 0)
     {
         std::copy(bit_array, bit_array + array_length, output_bit_array_with_errors);

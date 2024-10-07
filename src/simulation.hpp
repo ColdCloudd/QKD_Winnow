@@ -16,16 +16,24 @@ struct test_combination
 {
     int test_number{};
     std::vector<size_t> trial_combination{};
-    float error_probability{};
+    float QBER{};
 };
 
 struct test_result
 {
     int test_number{};
     std::vector<size_t> trial_combination{};
-    double error_probability{};
-    double mean_final_error{};
-    double mean_remaining_fraction{};
+    double QBER{};
+
+    double final_qber_mean{};
+    double final_qber_std_dev{};
+    double final_qber_min{};
+    double final_qber_max{};
+
+    double final_fraction_mean{};
+    double final_fraction_std_dev{};
+    double final_fraction_min{};
+    double final_fraction_max{};
 };
 
 std::vector<std::vector<size_t>> cartesian_product(std::vector<std::vector<size_t>> trial_elements);

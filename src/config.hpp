@@ -28,8 +28,8 @@ struct config_data
     // Initial key size
     size_t SIFTED_KEY_LENGTH{};
 
-    // Initial power of syndrome. Determines the length of the block (2^3, then 2^4, etc.)
-    size_t INITIAL_SYNDROME_POWER{};
+    // Initial length of syndrome. Determines the length of the block (2^3, then 2^4, etc.)
+    size_t INITIAL_SYNDROME_LENGTH{};
 
     // Average initial error rate in the Bob's key
     std::vector<double> QBER{};

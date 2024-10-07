@@ -2,9 +2,9 @@
 
 // Discards bits at the first position in the block for privacy amplification
 void discard_bits_for_parity_check(const int *const source_bit_array, const size_t &source_array_length,
-                                   int *const destination_bit_array, const size_t &syndrome_power)
+                                   int *const destination_bit_array, const size_t &syndrome_length)
 {
-    size_t source_block_size = static_cast<size_t>(pow(2, syndrome_power));
+    size_t source_block_size = static_cast<size_t>(pow(2, syndrome_length));
     size_t destination_block_size = source_block_size - 1;
     for (size_t i = 0, j = 0; i < source_array_length; i += source_block_size, j += destination_block_size)
     {
@@ -12,7 +12,7 @@ void discard_bits_for_parity_check(const int *const source_bit_array, const size
     }
 }
 
-// Discards bits at positions 2^n, where n=(0,1, ... syndrome_power - 1) in the block for privacy amplification
+// Discards bits at positions 2^n, where n=(0,1, ... syndrome_length - 1) in the block for privacy amplification
 void discard_bits_for_syndrome(const int *const source_bit_block, int *const destination_bit_block,
                                const std::vector<int> &discarded_bit_positions)
 {
@@ -32,12 +32,12 @@ bool calculate_block_parity(const int *const bit_block, const size_t &block_leng
 }
 
 // Computes a matrix based on the Hamming hash function
-int **calculate_Hamming_hash_matrix(size_t syndrome_power)
+int **calculate_Hamming_hash_matrix(size_t syndrome_length)
 {
-    size_t block_length = static_cast<size_t>(pow(2, syndrome_power)) - 1;
+    size_t block_length = static_cast<size_t>(pow(2, syndrome_length)) - 1;
 
-    int **hash_matrix = new int *[syndrome_power];
-    for (size_t i = 0; i < syndrome_power; ++i)
+    int **hash_matrix = new int *[syndrome_length];
+    for (size_t i = 0; i < syndrome_length; ++i)
     {
         hash_matrix[i] = new int[block_length];
         for (size_t j = 0; j < block_length; ++j)
@@ -49,11 +49,11 @@ int **calculate_Hamming_hash_matrix(size_t syndrome_power)
 }
 
 // Calculates the syndrome by multiplying the Hamming matrix by the bit block column vector
-void calculate_syndrome(const int *const bit_block, const size_t &syndrome_power, const size_t &block_length,
+void calculate_syndrome(const int *const bit_block, const size_t &syndrome_length, const size_t &block_length,
                         const int *const *hash_matrix, int *const output_syndrome)
 {
     int xor_sum = 0;
-    for (size_t i = 0; i < syndrome_power; i++)
+    for (size_t i = 0; i < syndrome_length; i++)
     {
         xor_sum = 0;
         for (size_t j = 0; j < block_length; j++)
@@ -69,10 +69,10 @@ void calculate_syndrome(const int *const bit_block, const size_t &syndrome_power
 
 // Calculates the error position in a block based on Alice's and Bob's syndromes and inverts this bit in Alice's block
 void correct_error(int *const bit_block, const int *const first_syndrome, const int *const second_syndrome,
-                   const size_t &syndrome_power)
+                   const size_t &syndrome_length)
 {
     int error_bit_position = -1;
-    for (size_t i = 0; i < syndrome_power; i++)
+    for (size_t i = 0; i < syndrome_length; i++)
     {
         error_bit_position += (first_syndrome[i] ^ second_syndrome[i]) * (int)pow(2, i);
     }
@@ -82,11 +82,11 @@ void correct_error(int *const bit_block, const int *const first_syndrome, const 
     }
 }
 
-winnow_result winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array_length, size_t syndrome_power,
+winnow_result winnow(int *const alice_bit_array, int *const bob_bit_array, size_t array_length, size_t syndrome_length,
               const int* const* hash_mat, int *const output_alice_bit_array, int *const output_bob_bit_array)
 {
     
-    size_t block_len = static_cast<size_t>(pow(2, syndrome_power));
+    size_t block_len = static_cast<size_t>(pow(2, syndrome_length));
     size_t blocks_cnt = array_length / block_len;
 
     std::vector<int> diff_par_blocks; // Contains the numbers of blocks whose parity bits did not match for Alice and Bob
@@ -109,8 +109,8 @@ winnow_result winnow(int *const alice_bit_array, int *const bob_bit_array, size_
     int *alice_priv_amp = new int[priv_amp_arr_len];
     int *bob_priv_amp = new int[priv_amp_arr_len];
     // Privacy amplification by discarding the first bit in each block.
-    discard_bits_for_parity_check(alice_bit_array, array_length, alice_priv_amp, syndrome_power);
-    discard_bits_for_parity_check(bob_bit_array, array_length, bob_priv_amp, syndrome_power);
+    discard_bits_for_parity_check(alice_bit_array, array_length, alice_priv_amp, syndrome_length);
+    discard_bits_for_parity_check(bob_bit_array, array_length, bob_priv_amp, syndrome_length);
 
     if(CFG.TRACE_WINNOW)
     {
@@ -127,14 +127,14 @@ winnow_result winnow(int *const alice_bit_array, int *const bob_bit_array, size_
 
     block_len -= 1;
     // Alice and Bob syndromes
-    int *alice_syn = new int[syndrome_power];
-    int *bob_syn = new int[syndrome_power];
+    int *alice_syn = new int[syndrome_length];
+    int *bob_syn = new int[syndrome_length];
     for (size_t i = 0; i < diff_par_blocks.size(); i++)
     {
         // Calculation of syndromes for blocks with non-matching parity bits, followed by error correction
-        calculate_syndrome(alice_priv_amp + (diff_par_blocks[i] * block_len), syndrome_power, block_len, hash_mat, alice_syn);
-        calculate_syndrome(bob_priv_amp + (diff_par_blocks[i] * block_len), syndrome_power, block_len, hash_mat, bob_syn);
-        correct_error(alice_priv_amp + (diff_par_blocks[i] * block_len), alice_syn, bob_syn, syndrome_power);
+        calculate_syndrome(alice_priv_amp + (diff_par_blocks[i] * block_len), syndrome_length, block_len, hash_mat, alice_syn);
+        calculate_syndrome(bob_priv_amp + (diff_par_blocks[i] * block_len), syndrome_length, block_len, hash_mat, bob_syn);
+        correct_error(alice_priv_amp + (diff_par_blocks[i] * block_len), alice_syn, bob_syn, syndrome_length);
     }
 
     delete[] alice_syn;
@@ -148,12 +148,12 @@ winnow_result winnow(int *const alice_bit_array, int *const bob_bit_array, size_
         fmt::print(fg(fmt::color::blue), "      - Bob's key after error correction\n");
     }
 
-    size_t remain_bits_cnt = block_len - syndrome_power; // Number of remaining bits in blocks for which syndromes were calculated
-    size_t out_arr_len = priv_amp_arr_len - diff_par_blocks.size() * syndrome_power;
+    size_t remain_bits_cnt = block_len - syndrome_length; // Number of remaining bits in blocks for which syndromes were calculated
+    size_t out_arr_len = priv_amp_arr_len - diff_par_blocks.size() * syndrome_length;
 
-    // Contains bounds that specify valid bits [from 2^0, 2^1, ... , 2^(syndrome_power-1)],
-    // and the last element (2^syndrome_power) which is the right boundary
-    std::vector<int> disc_bit_pos(syndrome_power + 1);
+    // Contains bounds that specify valid bits [from 2^0, 2^1, ... , 2^(syndrome_length-1)],
+    // and the last element (2^syndrome_length) which is the right boundary
+    std::vector<int> disc_bit_pos(syndrome_length + 1);
     for (size_t i = 0; i < disc_bit_pos.size(); i++)
     {
         disc_bit_pos[i] = (int)(pow(2, i) - 1);

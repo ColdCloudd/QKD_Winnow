@@ -52,10 +52,10 @@ config_data get_config_data(fs::path config_path)
             throw std::runtime_error("Minimum sifted key length is 8!");
         }
 
-        cfg.INITIAL_SYNDROME_POWER = config["initial_syndrome_power"].template get<size_t>();
-        if (cfg.INITIAL_SYNDROME_POWER < 3)
+        cfg.INITIAL_SYNDROME_LENGTH = config["initial_syndrome_length"].template get<size_t>();
+        if (cfg.INITIAL_SYNDROME_LENGTH < 3)
         {
-            throw std::runtime_error("Minimum initial syndrome power is 3!");
+            throw std::runtime_error("Minimum initial syndrome length is 3!");
         }
         
         cfg.QBER = config["qber"].template get<std::vector<double>>();

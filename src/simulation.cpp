@@ -31,7 +31,7 @@ std::vector<test_combination> prepare_combinations(const std::vector<std::vector
         {
             combinations[test_number].test_number = test_number;
             combinations[test_number].trial_combination = trial_combinations[i];
-            combinations[test_number].error_probability = bit_error_rates[j];
+            combinations[test_number].QBER = bit_error_rates[j];
             test_number++;
         }
     }
@@ -48,7 +48,7 @@ size_t run_trial(const int *const alice_bit_array, const int *const bob_bit_arra
     size_t padding_length = 0;
     size_t num_padding_bits_removed_by_winnow = 0;
     size_t result_array_length = array_length;
-    size_t syndrome_power = CFG.INITIAL_SYNDROME_POWER;
+    size_t syndrome_length = CFG.INITIAL_SYNDROME_LENGTH;
     int *current_alice_bit_array = new int[array_length];
     int *current_bob_bit_array = new int[array_length];
     bool padding = false;
@@ -58,8 +58,8 @@ size_t run_trial(const int *const alice_bit_array, const int *const bob_bit_arra
     memcpy(current_bob_bit_array, bob_bit_array, array_length * sizeof(int));
     for (size_t i = 0; i < trial_combination.size(); i++)
     {
-        block_length = static_cast<size_t>(pow(2, syndrome_power));
-        int **hash_mat = calculate_Hamming_hash_matrix(syndrome_power);
+        block_length = static_cast<size_t>(pow(2, syndrome_length));
+        int **hash_mat = calculate_Hamming_hash_matrix(syndrome_length);
         for (size_t j = 0; j < trial_combination[i]; j++)
         {
             last_incompl_block_length = result_array_length % block_length; // Before each Winnow run, сalculates the length of the last block
@@ -80,14 +80,14 @@ size_t run_trial(const int *const alice_bit_array, const int *const bob_bit_arra
                 }
             }
             
-            result = winnow(current_alice_bit_array, current_bob_bit_array, result_array_length, syndrome_power, hash_mat, output_alice_bit_array, output_bob_bit_array);
+            result = winnow(current_alice_bit_array, current_bob_bit_array, result_array_length, syndrome_length, hash_mat, output_alice_bit_array, output_bob_bit_array);
             result_array_length = result.result_array_length;
 
             if(padding)
             {
                 if(result.last_block_with_error)
                 {
-                    for (size_t k = 0; k < syndrome_power; k++)
+                    for (size_t k = 0; k < syndrome_length; k++)
                     {
                         if (static_cast<size_t>(pow(2, k)) >= last_incompl_block_length)
                         {
@@ -109,12 +109,12 @@ size_t run_trial(const int *const alice_bit_array, const int *const bob_bit_arra
             memcpy(current_bob_bit_array, output_bob_bit_array, result_array_length * sizeof(int));
         }
 
-        for (size_t i = 0; i < syndrome_power; ++i)
+        for (size_t i = 0; i < syndrome_length; ++i)
         {
             delete[] hash_mat[i];
         }
         delete[] hash_mat;
-        syndrome_power++;
+        syndrome_length++;
     }
     delete[] current_alice_bit_array;
     delete[] current_bob_bit_array;
@@ -128,13 +128,14 @@ test_result run_test(const test_combination combination, size_t seed)
 {
     size_t errors_number = 0;
     size_t output_array_length = 0;
-    double mean_final_error = 0;
-    double mean_remaining_fraction = 0;
     int *alice_bit_array = new int[CFG.SIFTED_KEY_LENGTH];
     int *bob_bit_array = new int[CFG.SIFTED_KEY_LENGTH];
     int *output_alice_bit_array = new int[CFG.SIFTED_KEY_LENGTH]{};
     int *output_bob_bit_array = new int[CFG.SIFTED_KEY_LENGTH]{};
     int *error_positions_array = new int[CFG.SIFTED_KEY_LENGTH];
+
+    std::vector<double> final_qbers(CFG.TRIALS_NUMBER); 
+    std::vector<double> final_fractions(CFG.TRIALS_NUMBER); 
 
     // Pseudo-random number generator
     std::mt19937 prng(seed);
@@ -142,16 +143,14 @@ test_result run_test(const test_combination combination, size_t seed)
     for (size_t i = 0; i < CFG.TRIALS_NUMBER; i++)
     {
         generate_random_bit_array(prng, CFG.SIFTED_KEY_LENGTH, alice_bit_array);
-        introduce_errors(prng, alice_bit_array, CFG.SIFTED_KEY_LENGTH, combination.error_probability, bob_bit_array);
+        introduce_errors(prng, alice_bit_array, CFG.SIFTED_KEY_LENGTH, combination.QBER, bob_bit_array);
         output_array_length = run_trial(alice_bit_array, bob_bit_array, CFG.SIFTED_KEY_LENGTH, combination.trial_combination, CFG.SHUFFLE_MODE, output_alice_bit_array, output_bob_bit_array);
 
         calculate_error_positions(output_alice_bit_array, output_bob_bit_array, output_array_length, error_positions_array);
         errors_number = std::accumulate(error_positions_array, error_positions_array + output_array_length, 0);
-        mean_final_error += static_cast<double>(errors_number) / static_cast<double>(output_array_length);
-        mean_remaining_fraction += static_cast<double>(output_array_length) / static_cast<double>(CFG.SIFTED_KEY_LENGTH);
+        final_qbers[i] = static_cast<double>(errors_number) / static_cast<double>(output_array_length);
+        final_fractions[i] = static_cast<double>(output_array_length) / static_cast<double>(CFG.SIFTED_KEY_LENGTH);
     }
-    mean_final_error = mean_final_error / static_cast<double>(CFG.TRIALS_NUMBER);
-    mean_remaining_fraction = mean_remaining_fraction / static_cast<double>(CFG.TRIALS_NUMBER);
 
     delete[] alice_bit_array;
     delete[] bob_bit_array;
@@ -159,12 +158,41 @@ test_result run_test(const test_combination combination, size_t seed)
     delete[] output_bob_bit_array;
     delete[] error_positions_array;
 
+    double final_qber_mean = std::accumulate(final_qbers.begin(), final_qbers.end(), 0.) / static_cast<double>(CFG.TRIALS_NUMBER);
+    auto final_qber_minmax = std::minmax_element(final_qbers.begin(), final_qbers.end());
+    double final_qber_min = *final_qber_minmax.first;
+    double final_qber_max = *final_qber_minmax.second;
+    double final_qber_variance = std::accumulate(final_qbers.begin(), final_qbers.end(), 0., 
+        [final_qber_mean](double acc, double val) {
+            return acc + std::pow(val - final_qber_mean, 2);
+        });
+    double final_qber_std_dev = sqrt(final_qber_variance / CFG.TRIALS_NUMBER);
+
+    double final_fraction_mean = std::accumulate(final_fractions.begin(), final_fractions.end(), 0.) / static_cast<double>(CFG.TRIALS_NUMBER);
+    auto final_fraction_minmax = std::minmax_element(final_fractions.begin(), final_fractions.end());
+    double final_fraction_min = *final_fraction_minmax.first;
+    double final_fraction_max = *final_fraction_minmax.second;
+    double final_fraction_variance = std::accumulate(final_fractions.begin(), final_fractions.end(), 0., 
+        [final_fraction_mean](double acc, double val) {
+            return acc + std::pow(val - final_fraction_mean, 2);
+        });
+    double final_fraction_std_dev = sqrt(final_fraction_variance / CFG.TRIALS_NUMBER);
+
     test_result result;
     result.test_number = combination.test_number;
     result.trial_combination = combination.trial_combination;
-    result.error_probability = static_cast<double>(combination.error_probability);
-    result.mean_final_error = mean_final_error;
-    result.mean_remaining_fraction = mean_remaining_fraction;
+    result.QBER = static_cast<double>(combination.QBER);
+
+    result.final_qber_mean = final_qber_mean;
+    result.final_qber_std_dev = final_qber_std_dev;
+    result.final_qber_min = final_qber_min;
+    result.final_qber_max = final_qber_max;
+
+    result.final_fraction_mean = final_fraction_mean;
+    result.final_fraction_std_dev = final_fraction_std_dev;
+    result.final_fraction_min = final_fraction_min;
+    result.final_fraction_max = final_fraction_max;
+
     return result;
 }
 
@@ -235,16 +263,19 @@ void write_file(const std::vector<test_result> &data, fs::path directory)
         {
             fs::create_directories(directory);
         }
-        std::string filename = "winnow(trial_num=" + std::to_string(CFG.TRIALS_NUMBER) + ",shuff_mode=" + std::to_string(CFG.SHUFFLE_MODE) + ",seed=" + std::to_string(CFG.SIMULATION_SEED) + ").csv";
+        std::string filename = "winnow(trial_num=" + std::to_string(CFG.TRIALS_NUMBER) + ",shuff_mode=" + std::to_string(CFG.SHUFFLE_MODE) 
+        + ",seed=" + std::to_string(CFG.SIMULATION_SEED) + ",key_length=" + std::to_string(CFG.SIFTED_KEY_LENGTH) + ").csv";
         fs::path result_file_path = directory / filename;
 
         std::fstream fout;
         fout.open(result_file_path, std::ios::out | std::ios::trunc);
-        fout << "№;TRIAL_COMBINATION;INITIAL_QBER;MEAN_FINAL_QBER;MEAN_FINAL_FRACTION\n";
+        fout << "№;TRIAL_COMBINATION;INITIAL_QBER;FINAL_QBER_MEAN;FINAL_QBER_STD_DEV;FINAL_QBER_MIN;FINAL_QBER_MAX;" 
+             << "FINAL_FRACTION_MEAN;FINAL_FRACTION_STD_DEV;FINAL_FRACTION_MIN;FINAL_FRACTION_MAX\n";
         for (size_t i = 0; i < data.size(); i++)
         {
-            fout << data[i].test_number << ";" << get_trial_combination_string(data[i].trial_combination) << ";" << data[i].error_probability << ";"
-                 << data[i].mean_final_error << ";" << data[i].mean_remaining_fraction << "\n";
+            fout << data[i].test_number << ";" << get_trial_combination_string(data[i].trial_combination) << ";" << data[i].QBER << ";"
+                 << data[i].final_qber_mean << ";" << data[i].final_qber_std_dev << ";" << data[i].final_qber_min << ";" << data[i].final_qber_max << ";"
+                 << data[i].final_fraction_mean << ";" << data[i].final_fraction_std_dev << ";" << data[i].final_fraction_min << ";" << data[i].final_fraction_max << "\n";
         }
         fout.close();
     }
