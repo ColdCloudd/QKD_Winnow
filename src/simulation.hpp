@@ -23,7 +23,7 @@ struct test_result
 {
     int test_number{};
     std::vector<size_t> trial_combination{};
-    double QBER{};
+    double initial_qber{};      // Exact QBER in the key.
 
     double final_qber_mean{};
     double final_qber_std_dev{};
@@ -43,4 +43,6 @@ size_t run_trial(const int *const alice_bit_array, const int *const bob_bit_arra
 test_result run_test(const test_combination combination, size_t seed);
 std::vector<test_result> run_simulation(const std::vector<test_combination> &combinations);
 std::string get_trial_combination_string(const std::vector<size_t> &combination);
+std::string get_num_pass_with_block_size_sequence_string(const std::vector<size_t> &combination);
+std::string get_header_block_size_string(const std::vector<size_t> &combination);
 void write_file(const std::vector<test_result> &data, fs::path directory);

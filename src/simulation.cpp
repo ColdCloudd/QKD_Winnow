@@ -181,7 +181,7 @@ test_result run_test(const test_combination combination, size_t seed)
     test_result result;
     result.test_number = combination.test_number;
     result.trial_combination = combination.trial_combination;
-    result.QBER = static_cast<double>(combination.QBER);
+    result.initial_qber = static_cast<double>(static_cast<size_t>(CFG.SIFTED_KEY_LENGTH * combination.QBER)) / CFG.SIFTED_KEY_LENGTH; // Exact QBER in the key.
 
     result.final_qber_mean = final_qber_mean;
     result.final_qber_std_dev = final_qber_std_dev;
@@ -254,6 +254,39 @@ std::string get_trial_combination_string(const std::vector<size_t> &combination)
     return comb_str;
 }
 
+// Returns the run represented by the sequence (example: 0;2;1 - 0 passes with block size 8, then 2 passes with block size 16 and 1 pass with block size 32).
+std::string get_num_pass_with_block_size_sequence_string(const std::vector<size_t> &combination)
+{
+    std::string seq_str = "";
+    for (size_t i = 0; i < combination.size(); i++)
+    {
+        seq_str += std::to_string(combination[i]);
+        if (i < combination.size() - 1)
+        {
+            seq_str += ";";
+        }
+    }
+    return seq_str;
+}
+
+// Returns a block size header (example: N=8;N=16;N=32 ...).
+std::string get_header_block_size_string(const std::vector<size_t> &combination)
+{
+    std::string header_str = "";
+    size_t syndrome_length = CFG.INITIAL_SYNDROME_LENGTH;
+    for (size_t i = 0; i < combination.size(); i++)
+    {
+        header_str += "N=";
+        header_str += std::to_string(static_cast<size_t>(pow(2, syndrome_length)));
+        if (i < combination.size() - 1)
+        {
+            header_str += ";";
+        }
+        syndrome_length++;
+    }
+    return header_str;
+}
+
 // Records the results of the simulation in a ".csv" format file
 void write_file(const std::vector<test_result> &data, fs::path directory)
 {
@@ -269,12 +302,12 @@ void write_file(const std::vector<test_result> &data, fs::path directory)
 
         std::fstream fout;
         fout.open(result_file_path, std::ios::out | std::ios::trunc);
-        fout << "№;TRIAL_COMBINATION;INITIAL_QBER;FINAL_QBER_MEAN;FINAL_QBER_STD_DEV;FINAL_QBER_MIN;FINAL_QBER_MAX;" 
+        fout << "№;TRIAL_COMBINATION;"<< get_header_block_size_string(data[0].trial_combination) << ";INITIAL_QBER;FINAL_QBER_MEAN;FINAL_QBER_STD_DEV;FINAL_QBER_MIN;FINAL_QBER_MAX;" 
              << "FINAL_FRACTION_MEAN;FINAL_FRACTION_STD_DEV;FINAL_FRACTION_MIN;FINAL_FRACTION_MAX\n";
         for (size_t i = 0; i < data.size(); i++)
         {
-            fout << data[i].test_number << ";" << get_trial_combination_string(data[i].trial_combination) << ";" << data[i].QBER << ";"
-                 << data[i].final_qber_mean << ";" << data[i].final_qber_std_dev << ";" << data[i].final_qber_min << ";" << data[i].final_qber_max << ";"
+            fout << data[i].test_number << ";" << get_trial_combination_string(data[i].trial_combination) << ";"<< get_num_pass_with_block_size_sequence_string(data[i].trial_combination) << ";"
+                 << data[i].initial_qber << ";" << data[i].final_qber_mean << ";" << data[i].final_qber_std_dev << ";" << data[i].final_qber_min << ";" << data[i].final_qber_max << ";"
                  << data[i].final_fraction_mean << ";" << data[i].final_fraction_std_dev << ";" << data[i].final_fraction_min << ";" << data[i].final_fraction_max << "\n";
         }
         fout.close();
