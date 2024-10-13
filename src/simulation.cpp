@@ -138,7 +138,7 @@ test_result run_test(const test_combination combination, size_t seed)
     std::vector<double> final_fractions(CFG.TRIALS_NUMBER); 
 
     // Pseudo-random number generator
-    std::mt19937 prng(seed);
+    XoshiroCpp::Xoshiro256PlusPlus prng(seed);
 
     for (size_t i = 0; i < CFG.TRIALS_NUMBER; i++)
     {

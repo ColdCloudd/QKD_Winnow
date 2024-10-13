@@ -5,7 +5,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-
 set(CPM_DOWNLOAD_LOCATION "${CMAKE_BINARY_DIR}/cmake/CPM.cmake")
 if(NOT(EXISTS ${CPM_DOWNLOAD_LOCATION}))
     message(STATUS "Downloading CPM.cmake")
@@ -31,6 +30,12 @@ CPMAddPackage(
     VERSION 2.3)
 
 CPMAddPackage(
+    NAME xoshiro_cpp
+    GITHUB_REPOSITORY Reputeless/Xoshiro-cpp
+    VERSION 1.1)
+include_directories(${xoshiro_cpp_SOURCE_DIR})
+
+CPMAddPackage(
     NAME nlohmann_json
     VERSION 3.11.3
     GITHUB_REPOSITORY nlohmann/json
@@ -52,7 +57,7 @@ add_executable(QKD_Winnow
     src/winnow_algorithm.cpp
     )
 target_include_directories(QKD_Winnow PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(QKD_Winnow BS_thread_pool fmt indicators nlohmann_json)
+target_link_libraries(QKD_Winnow PUBLIC BS_thread_pool fmt indicators nlohmann_json)
 
 option(BUILD_EXAMPLES "Build examples" ON)
 

@@ -1,7 +1,8 @@
 #include "bit_array_operations.hpp"
 
+
 // Generates Alice's key
-void generate_random_bit_array(std::mt19937 &prng, size_t length, int *const output_random_bit_array)
+void generate_random_bit_array(XoshiroCpp::Xoshiro256PlusPlus &prng, size_t length, int *const output_random_bit_array)
 {
     std::uniform_int_distribution<int> distribution(0, 1);
 
@@ -13,7 +14,7 @@ void generate_random_bit_array(std::mt19937 &prng, size_t length, int *const out
 }
 
 // Generates Bob's key by making errors in Alice's key. Generates the exact number of errors in the key and returns the exact QBER.
-void introduce_errors(std::mt19937 &prng, const int *const bit_array, size_t array_length, float QBER,
+void introduce_errors(XoshiroCpp::Xoshiro256PlusPlus &prng, const int *const bit_array, size_t array_length, float QBER,
                       int *const output_bit_array_with_errors)
 {
     size_t num_errors = static_cast<size_t>(array_length * QBER);
@@ -44,10 +45,10 @@ void introduce_errors(std::mt19937 &prng, const int *const bit_array, size_t arr
 // Shuffles Alice's and Bob's bit arrays by seed
 void shuffle_array_bits(int *const alice_bit_array, int *const bob_bit_array, size_t array_length, int seed)
 {
-    std::mt19937 rng(seed);
-    std::shuffle(alice_bit_array, alice_bit_array + array_length, rng);
-    rng.seed(seed);
-    std::shuffle(bob_bit_array, bob_bit_array + array_length, rng);
+    XoshiroCpp::Xoshiro256PlusPlus rng1(seed);
+    std::shuffle(alice_bit_array, alice_bit_array + array_length, rng1);
+    XoshiroCpp::Xoshiro256PlusPlus rng2(seed);
+    std::shuffle(bob_bit_array, bob_bit_array + array_length, rng2);
 }
 
 // Calculates an array that consists of 0 and 1, where 1 denotes that Alice's and Bob's bits are different
