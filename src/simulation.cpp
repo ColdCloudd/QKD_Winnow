@@ -296,9 +296,17 @@ void write_file(const std::vector<test_result> &data, fs::path directory)
         {
             fs::create_directories(directory);
         }
-        std::string filename = "winnow(trial_num=" + std::to_string(CFG.TRIALS_NUMBER) + ",shuff_mode=" + std::to_string(CFG.SHUFFLE_MODE) 
-        + ",seed=" + std::to_string(CFG.SIMULATION_SEED) + ",key_length=" + std::to_string(CFG.SIFTED_KEY_LENGTH) + ").csv";
-        fs::path result_file_path = directory / filename;
+        std::string base_filename = "winnow(trial_num=" + std::to_string(CFG.TRIALS_NUMBER) + ",shuff_mode=" + std::to_string(CFG.SHUFFLE_MODE) 
+        +  ",key_length=" + std::to_string(CFG.SIFTED_KEY_LENGTH) + ",seed=" + std::to_string(CFG.SIMULATION_SEED) + ")";
+        std::string extension = ".csv";
+        fs::path result_file_path = directory / (base_filename + extension);
+
+        size_t file_count = 1;
+        while (fs::exists(result_file_path))
+        {
+            result_file_path = directory / (base_filename + "_" + std::to_string(file_count) + extension);
+            file_count++;
+        }
 
         std::fstream fout;
         fout.open(result_file_path, std::ios::out | std::ios::trunc);

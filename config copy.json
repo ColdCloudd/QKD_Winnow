@@ -2,8 +2,8 @@
     "threads_number": 16,
     "trials_number": 1000,
     "use_config_simulation_seed": true,
-    "simulation_seed": 231020243,
-    "shuffle_mode": false,
+    "simulation_seed": 23102024,
+    "shuffle_mode": true,
     "sifted_key_length": 10240,
     "initial_syndrome_length": 3,
     "qber": [0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.035, 0.04, 0.045, 0.05, 0.055, 0.06, 0.065, 0.07, 0.075, 0.08, 0.085, 0.09, 0.095, 0.1, 0.105, 0.11, 0.115, 0.12],
@@ -15,7 +15,7 @@
         [0, 1, 2, 3, 4, 5],
         [0, 1, 2, 3, 4, 5]
     ],
-    "use_specified_combinations": true,
-    "combinations": [[5,0,0,0,0,0], [0,5,0,0,0,0], [0,0,5,0,0,0], [0,0,0,5,0,0], [0,0,0,0,5,0], [0,0,0,0,0,5]],
+    "use_specified_combinations": false,
+    "combinations": [[1,1,1,1,1], [0,2,2], [4]],
     "trace_winnow": false
 }
