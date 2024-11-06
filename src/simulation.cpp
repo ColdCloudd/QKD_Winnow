@@ -134,6 +134,7 @@ test_result run_test(const test_combination combination, size_t seed)
     int *output_bob_bit_array = new int[CFG.SIFTED_KEY_LENGTH]{};
     int *error_positions_array = new int[CFG.SIFTED_KEY_LENGTH];
 
+    double frame_error_rate = 0;
     std::vector<double> final_qbers(CFG.TRIALS_NUMBER); 
     std::vector<double> final_fractions(CFG.TRIALS_NUMBER); 
 
@@ -148,6 +149,8 @@ test_result run_test(const test_combination combination, size_t seed)
 
         calculate_error_positions(output_alice_bit_array, output_bob_bit_array, output_array_length, error_positions_array);
         errors_number = std::accumulate(error_positions_array, error_positions_array + output_array_length, 0);
+        if(errors_number != 0)
+            frame_error_rate += 1.;
         final_qbers[i] = static_cast<double>(errors_number) / static_cast<double>(output_array_length);
         final_fractions[i] = static_cast<double>(output_array_length) / static_cast<double>(CFG.SIFTED_KEY_LENGTH);
     }
@@ -157,6 +160,8 @@ test_result run_test(const test_combination combination, size_t seed)
     delete[] output_alice_bit_array;
     delete[] output_bob_bit_array;
     delete[] error_positions_array;
+
+    frame_error_rate /= CFG.TRIALS_NUMBER;
 
     double final_qber_mean = std::accumulate(final_qbers.begin(), final_qbers.end(), 0.) / static_cast<double>(CFG.TRIALS_NUMBER);
     auto final_qber_minmax = std::minmax_element(final_qbers.begin(), final_qbers.end());
@@ -182,6 +187,8 @@ test_result run_test(const test_combination combination, size_t seed)
     result.test_number = combination.test_number;
     result.trial_combination = combination.trial_combination;
     result.initial_qber = static_cast<double>(static_cast<size_t>(CFG.SIFTED_KEY_LENGTH * combination.QBER)) / CFG.SIFTED_KEY_LENGTH; // Exact QBER in the key.
+
+    result.frame_error_rate = frame_error_rate;
 
     result.final_qber_mean = final_qber_mean;
     result.final_qber_std_dev = final_qber_std_dev;
@@ -311,12 +318,12 @@ void write_file(const std::vector<test_result> &data, fs::path directory)
         std::fstream fout;
         fout.open(result_file_path, std::ios::out | std::ios::trunc);
         fout << "№;TRIAL_COMBINATION;"<< get_header_block_size_string(data[0].trial_combination) << ";INITIAL_QBER;FINAL_QBER_MEAN;FINAL_QBER_STD_DEV;FINAL_QBER_MIN;FINAL_QBER_MAX;" 
-             << "FINAL_FRACTION_MEAN;FINAL_FRACTION_STD_DEV;FINAL_FRACTION_MIN;FINAL_FRACTION_MAX\n";
+             << "FINAL_FRACTION_MEAN;FINAL_FRACTION_STD_DEV;FINAL_FRACTION_MIN;FINAL_FRACTION_MAX;FER\n";
         for (size_t i = 0; i < data.size(); i++)
         {
             fout << data[i].test_number << ";" << get_trial_combination_string(data[i].trial_combination) << ";"<< get_num_pass_with_block_size_sequence_string(data[i].trial_combination) << ";"
                  << data[i].initial_qber << ";" << data[i].final_qber_mean << ";" << data[i].final_qber_std_dev << ";" << data[i].final_qber_min << ";" << data[i].final_qber_max << ";"
-                 << data[i].final_fraction_mean << ";" << data[i].final_fraction_std_dev << ";" << data[i].final_fraction_min << ";" << data[i].final_fraction_max << "\n";
+                 << data[i].final_fraction_mean << ";" << data[i].final_fraction_std_dev << ";" << data[i].final_fraction_min << ";" << data[i].final_fraction_max << ";" << data[i].frame_error_rate << "\n";
         }
         fout.close();
     }

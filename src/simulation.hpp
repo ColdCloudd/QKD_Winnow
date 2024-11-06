@@ -25,6 +25,8 @@ struct test_result
     std::vector<size_t> trial_combination{};
     double initial_qber{};      // Exact QBER in the key.
 
+    double frame_error_rate{};
+    
     double final_qber_mean{};
     double final_qber_std_dev{};
     double final_qber_min{};
